@@ -2851,7 +2851,7 @@
 						-webkit-transition: color 0.2s ease-in-out;
 						-ms-transition: color 0.2s ease-in-out;
 						transition: color 0.2s ease-in-out;
-						color: #666;
+						color: #fcb98c;
 						display: inline-block;
 						text-decoration: none;
 					}
@@ -2913,7 +2913,7 @@
 			}
 
 				#header.alt nav a {
-					color: #ddd;
+					color: #fcb98c;
 				}
 
 					#header.alt nav a:active, #header.alt nav a:hover {
