@@ -1946,7 +1946,7 @@
 		input[type="button"].special,
 		button.special,
 		.button.special {
-			background-color: #c47ebd;
+			background-color: #fcb98c;
 			color: #ffffff !important;
 		}
 
@@ -2562,10 +2562,18 @@
 	}
 
 	header p {
-		color: #aaa;
+		color: #c47ebd;
 		position: relative;
 		margin: 0 0 1.5em 0;
 		text-transform: uppercase;
+	}
+
+	p.bold {
+		color: #c47ebd;
+		position: relative;
+		margin: 0 0 1.5em 0;
+		text-transform: uppercase;
+		font-weight: bold;
 	}
 
 	header h2 + p {
