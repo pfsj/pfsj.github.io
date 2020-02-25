@@ -48,8 +48,8 @@
 		-webkit-text-size-adjust: none;
 	}
 
-	body, .smooth-container { 
-		scroll-behavior: smooth 
+	body, .smooth-container {
+		scroll-behavior: smooth
 	}
 
 /* Box Model */
@@ -1654,7 +1654,7 @@
 
 	a {
 		text-decoration: underline;
-		color: #fcb98c;
+		color: #f08536;
 	}
 
 		a:hover {
@@ -1946,7 +1946,7 @@
 		input[type="button"].special,
 		button.special,
 		.button.special {
-			background-color: #fcb98c;
+			background-color: #f08536;
 			color: #ffffff !important;
 		}
 
@@ -2851,7 +2851,7 @@
 						-webkit-transition: color 0.2s ease-in-out;
 						-ms-transition: color 0.2s ease-in-out;
 						transition: color 0.2s ease-in-out;
-						color: #fcb98c;
+						color: #f08536;
 						display: inline-block;
 						text-decoration: none;
 					}
@@ -2913,7 +2913,7 @@
 			}
 
 				#header.alt nav a {
-					color: #fcb98c;
+					color: #f08536;
 				}
 
 					#header.alt nav a:active, #header.alt nav a:hover {
