@@ -2851,7 +2851,7 @@
 						-webkit-transition: color 0.2s ease-in-out;
 						-ms-transition: color 0.2s ease-in-out;
 						transition: color 0.2s ease-in-out;
-						color: #fff;
+						color: #f08536;
 						display: inline-block;
 						text-decoration: none;
 					}
@@ -2913,7 +2913,7 @@
 			}
 
 				#header.alt nav a {
-					color: #fff;
+					color: #f08536;
 				}
 
 					#header.alt nav a:active, #header.alt nav a:hover {
@@ -3122,7 +3122,7 @@
 		}
 
 		#banner p {
-			color: #fff;
+			color: #c47ebd;
 			font-size: 1.25em;
 			margin-bottom: 1.75em;
 			text-transform: uppercase;
