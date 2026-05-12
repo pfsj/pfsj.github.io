@@ -27,7 +27,7 @@
 		const svg = d3.select("#chart");
 		const width = +svg.attr("width");
 		const height = +svg.attr("height");
-		const margin = { top: 50, right: 30, bottom: 60, left: 260 };
+		const margin = { top: 50, right: 30, bottom: 70, left: 260 };
 		const innerWidth = width - margin.left - margin.right;
 		const innerHeight = height - margin.top - margin.bottom;
 		const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
@@ -60,9 +60,9 @@
 
 		g.append("text")
 			.attr("x", innerWidth)
-			.attr("y", innerHeight + 42)
+			.attr("y", innerHeight + 70)
 			.attr("text-anchor", "end")
-			.attr("font-size", 20)
+			.attr("font-size", 20).attr("fill", "#888")
 			.text("From Grov et al. (2020)");
 
 		g.append("text")

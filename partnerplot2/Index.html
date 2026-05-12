@@ -32,7 +32,7 @@ const data = [
   { substance: "Presc. Depressant", one_time: { aIRR: 1.01, lo: 0.78, hi: 1.30 }, casual: { aIRR: 1.10, lo: 0.92, hi: 1.32 } },
 ];
 
-const margin = { top: 60, right: 40, bottom: 60, left: 200 };
+const margin = { top: 60, right: 40, bottom: 90, left: 200 };
 const rowHeight = 64;
 const width = 620 - margin.left - margin.right;
 const height = data.length * rowHeight;
@@ -76,7 +76,8 @@ g.append("text")
 g.append("text")
   .attr("x", width / 2).attr("y", height + 48)
   .attr("text-anchor", "middle")
-  .attr("font-size", "15px").attr("fill", "#444")
+  .attr("font-size", "15px")
+  .attr("font-weight", "bold")
   .text("aIRR");
 
 const colors = { one_time: "#10b981", casual: "#3b82f6" };
@@ -165,7 +166,7 @@ data.forEach((d, i) => {
 // Citation bottom right
 svg.append("text")
   .attr("x", width + margin.left + margin.right - 15)
-  .attr("y", height + margin.top + margin.bottom - 0)
+  .attr("y", height + margin.top + margin.bottom - 10)
   .attr("text-anchor", "end")
   .attr("font-size", "20px")
   .attr("fill", "#888")
