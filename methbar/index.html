@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title></title>
+	<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+	<script src="https://cdn.jsdelivr.net/npm/roughjs@4.6.6/bundled/rough.js"></script>
+</head>
+<body>
+	<svg id="chart" width="900" height="520"></svg>
+	<script>
+		const data = [
+			{ label: "BL use only", value: 2.26, color: "#3b82f6", hoverColor: "#1e3a8a" },
+			{ label: "Use between BL and 12M", value: 3.95, color: "#10b981", hoverColor: "#065f46" },
+			{ label: "Persistent use", value: 7.11, color: "#f97316", hoverColor: "#9a3412" }
+		];
+
+		const svg = d3.select("#chart");
+		const width = +svg.attr("width");
+		const height = +svg.attr("height");
+		const margin = { top: 50, right: 30, bottom: 60, left: 180 };
+		const innerWidth = width - margin.left - margin.right;
+		const innerHeight = height - margin.top - margin.bottom;
+		const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+		const rc = rough.svg(svg.node());
+
+		const x = d3.scaleLinear()
+			.domain([0, d3.max(data, d => d.value) * 1.15])
+			.nice()
+			.range([0, innerWidth]);
+
+		const y = d3.scaleBand()
+			.domain(data.map(d => d.label))
+			.range([0, innerHeight])
+			.padding(0.28);
+
+		g.append("g").call(d3.axisLeft(y))
+			.selectAll(".tick text")
+			.style("font-size", "15px");
+		g.append("g")
+			.attr("transform", `translate(0,${innerHeight})`)
+			.call(d3.axisBottom(x).ticks(5));
+
+		g.append("text")
+			.attr("x", innerWidth / 2)
+			.attr("y", innerHeight + 42)
+			.attr("text-anchor", "middle")
+			.attr("font-size", 15)
+			.attr("font-weight", 600)
+			.text("Incident HIV Diagnoses (aOR)");
+
+		g.append("text")
+			.attr("x", innerWidth)
+			.attr("y", innerHeight + 42)
+			.attr("text-anchor", "end")
+			.attr("font-size", 12)
+			.attr("font-style", "italic")
+			.text("(Grove et al., 2020)");
+
+		g.append("text")
+			.attr("x", innerWidth / 2)
+			.attr("y", -18)
+			.attr("text-anchor", "middle")
+			.attr("font-size", 20)
+			.attr("font-weight", 700)
+			.text("Methamphetamine use and Incidence HIV Diagnosis");
+
+		data.forEach(d => {
+			const xPos = x(0);
+			const yPos = y(d.label);
+			const barWidth = x(d.value) - x(0);
+
+			const barGroup = g.append("g").style("cursor", "pointer");
+			const colorRect = barGroup.append("rect")
+				.attr("x", xPos)
+				.attr("y", yPos)
+				.attr("width", barWidth)
+				.attr("height", y.bandwidth())
+				.attr("fill", d.color);
+
+			const barNode = rc.rectangle(xPos, yPos, barWidth, y.bandwidth(), {
+				fill: d.color,
+				fillStyle: "zigzag",
+				stroke: d.color,
+				roughness: 1.5,
+				bowing: 1.2
+			});
+			barGroup.node().appendChild(barNode);
+
+			d3.select(barNode)
+				.selectAll("path")
+				.attr("stroke", d.color)
+				.attr("stroke-width", 1);
+
+			const valueLabel = barGroup.append("text")
+				.attr("x", x(d.value) + 8)
+				.attr("y", yPos + y.bandwidth() / 2 + 4)
+				.attr("text-anchor", "start")
+				.attr("font-size", 20)
+				.attr("font-weight", 600)
+				.text(d.value.toFixed(2));
+
+			barGroup
+				.on("mouseenter", () => {
+					d3.select(barNode).attr("opacity", 0.9);
+					colorRect.attr("fill", d.hoverColor);
+
+					d3.select(barNode)
+						.selectAll("path.rough-stroke, path[fill='zigzag']")
+						.attr("stroke", "#0b2447")
+						.attr("stroke-width", 2.5);
+				})
+				.on("mouseleave", () => {
+					d3.select(barNode).attr("opacity", 1);
+					colorRect.attr("fill", d.color);
+
+					d3.select(barNode)
+						.selectAll("path.rough-stroke, path[fill='zigzag']")
+						.attr("stroke", d.color)
+						.attr("stroke-width", 1);
+				});
+
+			barGroup;
+		});
+	</script>
+</body>
+</html>
