@@ -1,0 +1,170 @@
+
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Forest Plot</title>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <script src="https://cdn.jsdelivr.net/npm/roughjs@4.5.2/bundled/rough.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Montserrat', sans-serif; margin: 16px; }
+    .title { font-weight: 700; margin-bottom: 8px; font-family: 'Montserrat', sans-serif; }
+    .label, .value, .axis text { font-size: 12px; fill: #222; font-family: 'Montserrat', sans-serif; }
+    .ci { stroke: #10b981; stroke-width: 1.5; }
+    .ref { stroke: #3b82f6; stroke-dasharray: 4 3; }
+    .tooltip {
+      position: absolute; background: rgba(30,30,30,0.92); color: #fff;
+      padding: 7px 12px; border-radius: 6px; font-size: 12px;
+      font-family: 'Montserrat', sans-serif; pointer-events: none;
+      opacity: 0; transition: opacity 0.15s;
+    }
+  </style>
+</head>
+<body>
+  <div class="title" style="text-align: center;">The pooled relative risk of methamphetamine on the risk of multi-partner sex</div>
+  <svg id="forest" width="1100" height="620" style="display: block; margin: 0 auto;"></svg>
+
+  <script>
+    const meta_analysis_data = {
+      studies: [
+        { label: "Piyaraj(1), 2018", rr: 2.70, ci_lower: 0.63, ci_upper: 11.56, weight_pct: 5.91 },
+        { label: "Piyaraj(2), 2018", rr: 9.70, ci_lower: 2.38, ci_upper: 39.45, weight_pct: 6.06 },
+        { label: "Plankey(1), 2007", rr: 2.71, ci_lower: 1.81, ci_upper: 4.05, weight_pct: 8.78 },
+        { label: "Plankey(2), 2007", rr: 7.79, ci_lower: 5.17, ci_upper: 11.74, weight_pct: 8.77 },
+        { label: "Plankey(3), 2007", rr: 13.57, ci_lower: 8.43, ci_upper: 21.84, weight_pct: 8.64 },
+        { label: "Hirshfield(1), 2004", rr: 1.60, ci_lower: 0.63, ci_upper: 4.08, weight_pct: 7.46 },
+        { label: "Hirshfield(2), 2004", rr: 3.30, ci_lower: 1.40, ci_upper: 7.79, weight_pct: 7.68 },
+        { label: "Drumright, 2009", rr: 2.77, ci_lower: 1.18, ci_upper: 6.50, weight_pct: 7.70 },
+        { label: "Brown(1), 2017", rr: 5.70, ci_lower: 1.69, ci_upper: 19.21, weight_pct: 6.62 },
+        { label: "Brown(2), 2017", rr: 10.50, ci_lower: 2.19, ci_upper: 50.36, weight_pct: 5.59 },
+        { label: "Hoenigl, 2015", rr: 3.19, ci_lower: 2.53, ci_upper: 4.03, weight_pct: 9.02 },
+        { label: "Prestage, 2009", rr: 1.98, ci_lower: 1.23, ci_upper: 3.19, weight_pct: 8.64 },
+        { label: "Fernandez, 2007", rr: 1.04, ci_lower: 1.02, ci_upper: 1.06, weight_pct: 9.15 }
+      ],
+      overall: { label: "Overall", rr: 3.70, ci_lower: 2.04, ci_upper: 6.70, model: "random-effects" }
+    };
+
+    const svg = d3.select("#forest");
+    const width = +svg.attr("width");
+    const margin = { top: 30, right: 240, bottom: 55, left: 180 };
+    const studies = meta_analysis_data.studies;
+    const overall = meta_analysis_data.overall;
+    const rows = [...studies, overall];
+    const rowStep = 36;
+
+    const y = d3.scalePoint()
+      .domain(rows.map(d => d.label))
+      .range([margin.top, margin.top + rowStep * (rows.length - 1)]);
+
+    const xMin = 0.5;
+    const xMax = 32;
+
+    const x = d3.scaleLog()
+      .domain([xMin, xMax])
+      .range([margin.left, width - margin.right]);
+
+    const rc = rough.svg(svg.node());
+
+    svg.append("line")
+      .attr("class", "ref")
+      .attr("x1", x(1)).attr("x2", x(1))
+      .attr("y1", margin.top - 14)
+      .attr("y2", y(overall.label) + 20);
+
+    svg.selectAll(".left-label")
+      .data(rows)
+      .join("text")
+      .attr("class", "label")
+      .attr("x", 10)
+      .attr("y", d => y(d.label) + 4)
+      .style("font-weight", d => d.label === "Overall" ? 700 : 400)
+      .text(d => d.label);
+
+    const boxScale = d3.scaleLinear()
+      .domain(d3.extent(studies, d => d.weight_pct))
+      .range([9, 18]);
+
+    // Define arrowhead marker
+    svg.append("defs").append("marker")
+      .attr("id", "arrow")
+      .attr("viewBox", "0 0 10 10")
+      .attr("refX", 10)
+      .attr("refY", 5)
+      .attr("markerWidth", 6)
+      .attr("markerHeight", 6)
+      .attr("orient", "auto")
+      .append("path")
+      .attr("d", "M 0 0 L 10 5 L 0 10 z")
+      .attr("fill", "#10b981");
+
+    studies.forEach(d => {
+      const yy = y(d.label);
+      const ciUpperClamped = Math.min(d.ci_upper, xMax);
+      const exceedsMax = d.ci_upper > xMax;
+      svg.append("line")
+        .attr("class", "ci")
+        .attr("x1", x(Math.max(d.ci_lower, xMin)))
+        .attr("x2", x(ciUpperClamped))
+        .attr("y1", yy)
+        .attr("y2", yy)
+        .attr("marker-end", exceedsMax ? "url(#arrow)" : null);
+
+      const s = boxScale(d.weight_pct);
+      svg.node().appendChild(rc.rectangle(x(d.rr) - s / 2, yy - s / 2, s, s, {
+        stroke: "#111",
+        fill: "#10b981",
+        fillStyle: "zigzag",
+        roughness: 0.6
+      }));
+    });
+
+    const oy = y(overall.label);
+    svg.node().appendChild(rc.polygon([
+      [x(overall.ci_lower), oy],
+      [x(overall.rr), oy - 10],
+      [x(overall.ci_upper), oy],
+      [x(overall.rr), oy + 10]
+    ], {
+      stroke: "#000",
+      fill: "#f97316",
+      fillStyle: "hachure",
+      hachureGap: 3,
+      roughness: 1
+    }));
+
+    svg.selectAll(".right-value")
+      .data(rows)
+      .join("text")
+      .attr("class", "value")
+      .attr("x", width - margin.right + 8)
+      .attr("y", d => y(d.label) + 4)
+      .style("font-weight", d => d.label === "Overall" ? 700 : 400)
+      .text(d => `${d.rr.toFixed(2)} [${d.ci_lower.toFixed(2)}, ${d.ci_upper.toFixed(2)}]`);
+
+    svg.append("g")
+      .attr("class", "axis")
+      .attr("transform", `translate(0, ${y(overall.label) + 30})`)
+      .call(d3.axisBottom(x).tickValues([1, 2, 4, 8, 16, 32]).tickFormat(d3.format("~g")));
+
+    svg.append("text")
+      .attr("class", "label")
+      .attr("x", (margin.left + (width - margin.right)) / 2)
+      .attr("y", 570)
+      .attr("text-anchor", "middle")
+      .style("font-size", "20px")
+      .text("Relative Risk");
+
+    svg.append("text")
+      .attr("class", "label")
+      .attr("x", width - 100)
+      .attr("y", 615)
+      .attr("text-anchor", "end")
+      .style("fill", "#666")
+      .style("font-size", "20px")
+      .text("Recreated from Moradi et al. (2022)");
+  </script>
+</body>
+</html>
