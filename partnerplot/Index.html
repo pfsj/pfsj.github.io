@@ -113,27 +113,53 @@
         .attr("marker-end", exceedsMax ? "url(#arrow)" : null);
 
       const s = boxScale(d.weight_pct);
-      svg.node().appendChild(rc.rectangle(x(d.rr) - s / 2, yy - s / 2, s, s, {
+      const boxEl = rc.rectangle(x(d.rr) - s / 2, yy - s / 2, s, s, {
         stroke: "#111",
+        strokeWidth: 1,
         fill: "#10b981",
         fillStyle: "zigzag",
         roughness: 0.6
-      }));
+      });
+      boxEl.style.cursor = "pointer";
+      boxEl.addEventListener("mouseover", () => {
+        boxEl.querySelectorAll("path, line, rect").forEach(el => {
+          el.style.strokeWidth = "3";
+        });
+      });
+      boxEl.addEventListener("mouseout", () => {
+        boxEl.querySelectorAll("path, line, rect").forEach(el => {
+          el.style.strokeWidth = "";
+        });
+      });
+      svg.node().appendChild(boxEl);
     });
 
     const oy = y(overall.label);
-    svg.node().appendChild(rc.polygon([
+    const diamondEl = rc.polygon([
       [x(overall.ci_lower), oy],
       [x(overall.rr), oy - 10],
       [x(overall.ci_upper), oy],
       [x(overall.rr), oy + 10]
     ], {
       stroke: "#000",
+      strokeWidth: 1,
       fill: "#f97316",
       fillStyle: "hachure",
       hachureGap: 3,
       roughness: 1
-    }));
+    });
+    diamondEl.style.cursor = "pointer";
+    diamondEl.addEventListener("mouseover", () => {
+      diamondEl.querySelectorAll("path, line, polygon").forEach(el => {
+        el.style.strokeWidth = "3";
+      });
+    });
+    diamondEl.addEventListener("mouseout", () => {
+      diamondEl.querySelectorAll("path, line, polygon").forEach(el => {
+        el.style.strokeWidth = "";
+      });
+    });
+    svg.node().appendChild(diamondEl);
 
     svg.selectAll(".right-value")
       .data(rows)
