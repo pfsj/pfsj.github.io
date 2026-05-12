@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Forest Plot – Partner2 Data</title>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <script src="https://cdn.jsdelivr.net/npm/roughjs@4.5.2/bundled/rough.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: "Montserrat", sans-serif; background: #ffffff; display: flex; justify-content: center; padding: 30px; }
+    svg { background: #ffffff; }
+    .axis text { font-size: 15px; fill: #333; }
+    .axis path, .axis line { stroke: #555; }
+    .substance-label { font-size: 15px; fill: #222; }
+    .title { font-size: 15px; font-weight: bold; fill: #111; }
+    .legend-text { font-size: 15px; fill: #333; }
+    .null-line { stroke: #888; stroke-dasharray: 4,3; stroke-width: 1.2; }
+  </style>
+</head>
+<body>
+<svg id="chart"></svg>
+<script>
+const data = [
+  { substance: "HED",               one_time: { aIRR: 1.30, lo: 1.14, hi: 1.47 }, casual: { aIRR: 1.18, lo: 1.06, hi: 1.30 } },
+  { substance: "Marijuana",         one_time: { aIRR: 1.09, lo: 0.93, hi: 1.27 }, casual: { aIRR: 1.13, lo: 1.01, hi: 1.26 } },
+  { substance: "Cocaine",           one_time: { aIRR: 1.11, lo: 0.94, hi: 1.31 }, casual: { aIRR: 1.21, lo: 1.08, hi: 1.37 } },
+  { substance: "Ecstasy",           one_time: { aIRR: 1.21, lo: 1.01, hi: 1.44 }, casual: { aIRR: 1.07, lo: 0.95, hi: 1.20 } },
+  { substance: "Methamphetamine",   one_time: { aIRR: 1.41, lo: 1.04, hi: 1.92 }, casual: { aIRR: 1.41, lo: 1.13, hi: 1.76 } },
+  { substance: "Poppers",           one_time: { aIRR: 1.51, lo: 1.30, hi: 1.74 }, casual: { aIRR: 1.26, lo: 1.12, hi: 1.40 } },
+  { substance: "Presc. Stimulant",  one_time: { aIRR: 0.97, lo: 0.79, hi: 1.20 }, casual: { aIRR: 1.12, lo: 0.99, hi: 1.27 } },
+  { substance: "Presc. Painkiller", one_time: { aIRR: 0.89, lo: 0.69, hi: 1.16 }, casual: { aIRR: 1.06, lo: 0.87, hi: 1.28 } },
+  { substance: "Presc. Depressant", one_time: { aIRR: 1.01, lo: 0.78, hi: 1.30 }, casual: { aIRR: 1.10, lo: 0.92, hi: 1.32 } },
+];
+
+const margin = { top: 60, right: 40, bottom: 60, left: 200 };
+const rowHeight = 64;
+const width = 620 - margin.left - margin.right;
+const height = data.length * rowHeight;
+const offset = 9; // vertical offset between one_time and casual rows
+
+const svg = d3.select("#chart")
+  .attr("width", width + margin.left + margin.right)
+  .attr("height", height + margin.top + margin.bottom);
+
+const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+
+const rc = rough.svg(svg.node());
+
+const xMin = 0.60, xMax = 2.05;
+const xScale = d3.scaleLinear()
+  .domain([xMin, xMax])
+  .range([0, width]);
+
+// Null line at aIRR = 1
+g.append("line")
+  .attr("class", "null-line")
+  .attr("x1", xScale(1)).attr("x2", xScale(1))
+  .attr("y1", -10).attr("y2", height + 10);
+
+// X axis
+const xAxis = d3.axisBottom(xScale)
+  .tickValues([0.75, 1.00, 1.25, 1.50, 1.75])
+  .tickFormat(d3.format(".2f"));
+
+g.append("g")
+  .attr("class", "axis")
+  .attr("transform", `translate(0,${height + 10})`)
+  .call(xAxis);
+
+g.append("text")
+  .attr("class", "title")
+  .attr("x", (width - margin.left) / 2).attr("y", -35)
+  .attr("text-anchor", "middle")
+  .text("Partnership rate by within-person change in substance use");
+
+g.append("text")
+  .attr("x", width / 2).attr("y", height + 48)
+  .attr("text-anchor", "middle")
+  .attr("font-size", "15px").attr("fill", "#444")
+  .text("aIRR");
+
+const colors = { one_time: "#10b981", casual: "#3b82f6" };
+
+const roughOpts = (color) => ({
+  stroke: color, strokeWidth: 1.8, roughness: 1.1, bowing: 1
+});
+
+data.forEach((d, i) => {
+  const yCenter = i * rowHeight + rowHeight / 2;
+  const yOne   = yCenter - offset;
+  const yCas   = yCenter + offset;
+
+  // Alternating row background
+  if (i % 2 === 1) {
+    g.append("rect")
+      .attr("x", -margin.left)
+      .attr("y", i * rowHeight)
+      .attr("width", width + margin.left)
+      .attr("height", rowHeight)
+      .attr("fill", "#e0e0e0")
+      .attr("opacity", 0.6);
+  }
+
+  // Hover overlay rect
+  g.append("rect")
+    .attr("x", -margin.left)
+    .attr("y", i * rowHeight)
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", rowHeight)
+    .attr("fill", "transparent")
+    .attr("stroke", "none")
+    .attr("stroke-width", 2)
+    .attr("rx", 2)
+    .style("cursor", "default")
+    .style("pointer-events", "all")
+    .on("mouseover", function() {
+      d3.select(this)
+        .attr("fill", "rgba(100, 100, 100, 0.12)")
+        .attr("stroke", "#555");
+    })
+    .on("mouseout", function() {
+      d3.select(this)
+        .attr("fill", "transparent")
+        .attr("stroke", "none");
+    });
+
+  // Substance label
+  g.append("text")
+    .attr("class", "substance-label")
+    .attr("x", -8).attr("y", yCenter + 4)
+    .attr("text-anchor", "end")
+    .text(d.substance);
+
+  [
+    { est: d.one_time, y: yOne, color: colors.one_time, label: "one-time" },
+    { est: d.casual,   y: yCas, color: colors.casual,   label: "casual"   },
+  ].forEach(({ est, y, color }) => {
+    const xLo  = xScale(est.lo);
+    const xHi  = xScale(est.hi);
+    const xEst = xScale(est.aIRR);
+    const tickH = 5;
+
+    // CI line
+    const ciLine = rc.line(xLo, y, xHi, y, roughOpts(color));
+    g.node().appendChild(ciLine);
+
+    // CI end ticks
+    [xLo, xHi].forEach(x => {
+      const tick = rc.line(x, y - tickH, x, y + tickH, roughOpts(color));
+      g.node().appendChild(tick);
+    });
+
+    // Diamond for point estimate
+    const dSize = 6;
+    const diamond = rc.polygon([
+      [xEst, y - dSize],
+      [xEst + dSize * 0.6, y],
+      [xEst, y + dSize],
+      [xEst - dSize * 0.6, y],
+    ], { ...roughOpts(color), fill: color, fillStyle: "solid", fillWeight: 2 });
+    g.node().appendChild(diamond);
+  });
+});
+
+// Citation bottom right
+svg.append("text")
+  .attr("x", width + margin.left + margin.right - 15)
+  .attr("y", height + margin.top + margin.bottom - 5)
+  .attr("text-anchor", "end")
+  .attr("font-size", "15px")
+  .attr("fill", "#888")
+  .text("Janulis et al., 2023");
+
+// Legend (bottom right, stacked vertically)
+const legendX = width - 80;
+const legendY = height - 45;
+[
+  { color: colors.one_time, label: "One-time" },
+  { color: colors.casual,   label: "Casual"   },
+].forEach(({ color, label }, i) => {
+  const lx = legendX;
+  const ly = legendY + i * 20;
+  const dot = rc.circle(lx, ly + 5, 9, { ...roughOpts(color), fill: color, fillStyle: "solid", fillWeight: 2 });
+  g.node().appendChild(dot);
+  g.append("text")
+    .attr("class", "legend-text")
+    .attr("x", lx + 9).attr("y", ly + 9)
+    .text(label);
+});
+</script>
+</body>
+</html>
