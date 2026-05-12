@@ -165,11 +165,11 @@ data.forEach((d, i) => {
 // Citation bottom right
 svg.append("text")
   .attr("x", width + margin.left + margin.right - 15)
-  .attr("y", height + margin.top + margin.bottom - 5)
+  .attr("y", height + margin.top + margin.bottom - 0)
   .attr("text-anchor", "end")
-  .attr("font-size", "15px")
+  .attr("font-size", "20px")
   .attr("fill", "#888")
-  .text("Janulis et al., 2023");
+  .text("From Janulis et al. (2023)");
 
 // Legend (bottom right, stacked vertically)
 const legendX = width - 80;
