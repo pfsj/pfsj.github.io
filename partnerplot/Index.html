@@ -180,7 +180,7 @@
       .attr("x", (margin.left + (width - margin.right)) / 2)
       .attr("y", 570)
       .attr("text-anchor", "middle")
-      .style("font-size", "20px")
+      .style("font-size", "20px").attr("font-weight", "bold")
       .text("Relative Risk");
 
     svg.append("text")
@@ -190,7 +190,7 @@
       .attr("text-anchor", "end")
       .style("fill", "#666")
       .style("font-size", "20px")
-      .text("Reconstructed from Moradi et al. (2022)");
+      .text("From Moradi et al. (2022)");
   </script>
 </body>
 </html>
