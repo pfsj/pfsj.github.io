@@ -102,13 +102,13 @@
 				.attr("stroke-width", 2.5);
 
 			// CI whisker left
-			pointGroup.append("line")
+			const ciWhiskerLeft = pointGroup.append("line")
 				.attr("x1", ciLeft).attr("x2", ciLeft)
 				.attr("y1", cy - 7).attr("y2", cy + 7)
 				.attr("stroke", d.color).attr("stroke-width", 2.5);
 
 			// CI whisker right
-			pointGroup.append("line")
+			const ciWhiskerRight = pointGroup.append("line")
 				.attr("x1", ciRight).attr("x2", ciRight)
 				.attr("y1", cy - 7).attr("y2", cy + 7)
 				.attr("stroke", d.color).attr("stroke-width", 2.5);
@@ -144,10 +144,14 @@
 				.on("mouseenter", () => {
 					diamond.attr("fill", d.hoverColor).attr("opacity", 0.6);
 					ciLine.attr("stroke", d.hoverColor);
+					ciWhiskerLeft.attr("stroke", d.hoverColor);
+					ciWhiskerRight.attr("stroke", d.hoverColor);
 				})
 				.on("mouseleave", () => {
 					diamond.attr("fill", d.color).attr("opacity", 0.35);
 					ciLine.attr("stroke", d.color);
+					ciWhiskerLeft.attr("stroke", d.color);
+					ciWhiskerRight.attr("stroke", d.color);
 				});
 		});
 	</script>
