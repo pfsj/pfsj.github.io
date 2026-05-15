@@ -48,12 +48,6 @@ const xScale = d3.scaleLinear()
   .domain([xMin, xMax])
   .range([0, width]);
 
-// Null line at aIRR = 1
-g.append("line")
-  .attr("class", "null-line")
-  .attr("x1", xScale(1)).attr("x2", xScale(1))
-  .attr("y1", -10).attr("y2", height + 10);
-
 // X axis
 const xAxis = d3.axisBottom(xScale)
   .tickValues([0.75, 1.00, 1.25, 1.50, 1.75])
@@ -160,6 +154,12 @@ data.forEach((d, i) => {
   });
 });
 
+// Null line at aIRR = 1, drawn above shaded rows and plot marks
+g.append("line")
+  .attr("class", "null-line")
+  .attr("x1", xScale(1)).attr("x2", xScale(1))
+  .attr("y1", -10).attr("y2", height + 10);
+
 // Citation bottom right
 svg.append("text")
   .attr("x", width + margin.left + margin.right - 15)
@@ -171,7 +171,7 @@ svg.append("text")
 
 // Legend (bottom right, stacked vertically)
 const legendX = width - 80;
-const legendY = rowHeight / 2 - 5;
+const legendY = rowHeight / 2-15;
 [
   { color: colors.one_time, label: "One-time" },
   { color: colors.casual,   label: "Casual"   },
