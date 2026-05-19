@@ -59,9 +59,9 @@
 
 			function createRoughForestPlot({
 				selector = "#forest-plot",
-				width = 1280,
-				height = 500,
-				margin = { top: 30, right: 220, bottom: 60, left: 220 },
+				width = 1040,
+				height = 420,
+				margin = { top: 30, right: 180, bottom: 70, left: 220 },
 			} = {}) {
 				const innerWidth = width - margin.left - margin.right;
 				const innerHeight = height - margin.top - margin.bottom;
@@ -194,7 +194,7 @@
 
 				g.append("text")
 					.attr("x", innerWidth)
-					.attr("y", innerHeight + 55)
+					.attr("y", innerHeight + 56)
 					.attr("text-anchor", "end")
 					.style("font-size", "22px")
 					.style("fill", "#666")
