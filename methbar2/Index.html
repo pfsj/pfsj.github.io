@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Forest Plot</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+	    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+		<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+	    <style>
+            body, svg, text {
+                font-family: "Montserrat", sans-serif;
+				font-size: 16px;
+            }
+            .ci-hover-target {
+				cursor: pointer;
+			}
+	    </style>
+		<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+		<script src="https://cdn.jsdelivr.net/npm/roughjs@4.5.2/bundled/rough.js"></script>
+	</head>
+	<body>
+		<div id="forest-plot"></div>
+
+		<script>
+			const forestData = [
+				{
+					label: "Cross-sectional (RR)",
+					estimate: 1.85,
+					ciLow: 1.57,
+					ciHigh: 2.17,
+					fill: "#2563eb",
+					stroke: "#1d4ed8",
+				},
+				{
+					label: "Case-control (OR)",
+					estimate: 2.73,
+					ciLow: 2.16,
+					ciHigh: 3.46,
+					fill: "#16a34a",
+					stroke: "#15803d",
+				},
+				{
+					label: "Longitudinal (HR)",
+					estimate: 3.43,
+					ciLow: 2.98,
+					ciHigh: 3.95,
+					fill: "#dc2626",
+					stroke: "#b91c1c",
+				},
+			];
+
+			const defaultLineStroke = "#1f2937";
+			const highlightLineStroke = "#f59e0b";
+
+			function setRoughStroke(node, color) {
+				d3.select(node).selectAll("path").attr("stroke", color);
+			}
+
+			function createRoughForestPlot({
+				selector = "#forest-plot",
+				width = 1040,
+				height = 360,
+				margin = { top: 30, right: 180, bottom: 45, left: 220 },
+			} = {}) {
+				const innerWidth = width - margin.left - margin.right;
+				const innerHeight = height - margin.top - margin.bottom;
+
+				const root = d3.select(selector);
+				root.selectAll("*").remove();
+
+				const svg = root
+					.append("svg")
+					.attr("width", width)
+					.attr("height", height)
+					.attr("viewBox", `0 0 ${width} ${height}`)
+					.attr("role", "img")
+					.attr("aria-label", "Forest plot");
+
+				const g = svg
+					.append("g")
+					.attr("transform", `translate(${margin.left},${margin.top})`);
+
+				const xMin = 0;
+				const xMax = d3.max(forestData, (d) => d.ciHigh) + 0.15;
+
+				const x = d3.scaleLinear().domain([xMin, xMax]).range([0, innerWidth]);
+				const y = d3
+					.scaleBand()
+					.domain(forestData.map((d) => d.label))
+					.range([0, innerHeight])
+					.padding(0.45);
+
+				const rc = rough.svg(svg.node());
+
+				const nullLine = rc.line(x(1), 0, x(1), innerHeight, {
+					stroke: "#8b8b8b",
+					strokeWidth: 1.3,
+					roughness: 0,
+				});
+				g.node().appendChild(nullLine);
+
+				forestData.forEach((d) => {
+					const rowGroup = g.append("g").attr("class", "forest-row");
+					const yMid = y(d.label) + y.bandwidth() / 2;
+
+					const ci = rc.line(x(d.ciLow), yMid, x(d.ciHigh), yMid, {
+						stroke: defaultLineStroke,
+						strokeWidth: 2,
+						roughness: 0,
+					});
+					rowGroup.node().appendChild(ci);
+
+					const cx = x(d.estimate);
+					const r = 7;
+					const diamond = rc.polygon(
+						[
+							[cx, yMid - r],
+							[x(d.ciHigh), yMid],
+							[cx, yMid + r],
+							[x(d.ciLow), yMid],
+						],
+						{
+							fill: d.fill,
+							fillStyle: "hachure",
+							hachureGap: 3,
+							hachureAngle: 60,
+							fillWeight: 1.5,
+							stroke: d.stroke,
+							strokeWidth: 1.2,
+							roughness: 1.2,
+						}
+					);
+					rowGroup.node().appendChild(diamond);
+
+					rowGroup
+						.append("line")
+						.attr("class", "ci-hover-target")
+						.attr("x1", x(d.ciLow))
+						.attr("x2", x(d.ciHigh))
+						.attr("y1", yMid)
+						.attr("y2", yMid)
+						.attr("stroke", "transparent")
+						.attr("stroke-width", 16)
+						.on("mouseenter", function () {
+							setRoughStroke(ci, highlightLineStroke);
+							setRoughStroke(diamond, highlightLineStroke);
+						})
+						.on("mouseleave", function () {
+							setRoughStroke(ci, defaultLineStroke);
+							setRoughStroke(diamond, d.stroke);
+						});
+				});
+
+				const xAxis = d3.axisBottom(x).ticks(7).tickFormat(d3.format(".2f"));
+				g.append("g")
+					.attr("transform", `translate(0,${innerHeight})`)
+					.call(xAxis)
+					.call((axis) => axis.select(".domain").remove());
+
+				g.append("g")
+					.call(d3.axisLeft(y).tickSize(0))
+					.call((axis) => axis.select(".domain").remove())
+					.call((axis) => axis.selectAll("text").style("font-size", "16px"));
+
+				g.selectAll(".value-label")
+					.data(forestData)
+					.enter()
+					.append("text")
+					.attr("class", "value-label")
+					.attr("x", innerWidth + 8)
+					.attr("y", (d) => y(d.label) + y.bandwidth() / 2)
+					.attr("dy", "0.35em")
+					.style("font-size", "16px")
+					.text(
+						(d) =>
+							`${d.estimate.toFixed(2)} [${d.ciLow.toFixed(2)}, ${d.ciHigh.toFixed(2)}]`
+					);
+
+				g.append("text")
+					.attr("x", innerWidth / 2)
+					.attr("y", innerHeight + 38)
+					.attr("text-anchor", "middle")
+					.style("font-size", "16px")
+					.text("Effect size");
+
+				g.append("text")
+					.attr("x", innerWidth / 2)
+					.attr("y", -10)
+					.attr("text-anchor", "middle")
+					.style("font-size", "18px")
+					.style("font-weight", "600")
+					.text("Meta-Analysis of Methamphetamine Use and HIV Diagnosis");
+
+				return { svg, data: forestData, scales: { x, y } };
+			}
+
+			createRoughForestPlot();
+		</script>
+	</body>
+</html>
