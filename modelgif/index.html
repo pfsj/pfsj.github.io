@@ -71,6 +71,18 @@ function getNodeDegree(nodeId) {
     }).length;
 }
 
+// Helper to check if line segment (p1, q1) intersects with (p2, q2)
+function integrityCheckIntersection(p1, q1, p2, q2) {
+    function ccw(A, B, C) {
+        return (C.y - A.y) * (B.x - A.x) > (B.y - A.y) * (C.x - A.x);
+    }
+    // Prevent checking segments that share an endpoint
+    if (p1.id === p2.id || p1.id === q2.id || q1.id === p2.id || q1.id === q2.id) {
+        return false;
+    }
+    return (ccw(p1, p2, q2) !== ccw(q1, p2, q2)) && (ccw(p1, q1, p2) !== ccw(p1, q1, q2));
+}
+
 function init() {
     isResetting = false;
     frameCounter = 0;
@@ -158,7 +170,15 @@ function updateNetwork() {
                             return (sId === u.id && tId === v.id) || (sId === v.id && tId === u.id);
                         });
 
-                        if (!alreadyLinked && getNodeDegree(u.id) < 2 && getNodeDegree(v.id) < 2) {
+                        // Verify this proposed line doesn't cross any existing link paths
+                        const crossesExisting = links.some(l => {
+                            if (typeof l.source === 'object' && typeof l.target === 'object') {
+                                return integrityCheckIntersection(u, v, l.source, l.target);
+                            }
+                            return false;
+                        });
+
+                        if (!alreadyLinked && !crossesExisting && getNodeDegree(u.id) < 2 && getNodeDegree(v.id) < 2) {
                             links.push({ source: u.id, target: v.id });
                             linkForged = true;
                         }
@@ -191,7 +211,7 @@ function updateNetwork() {
     });
 
     const infectedCount = nodes.filter(n => n.status === 'infected').length;
-    if (infectedCount >= (numNodes / 2) && !isResetting) {
+    if (infectedCount === numNodes && !isResetting) {
         isResetting = true;
         setTimeout(() => {
             init();
