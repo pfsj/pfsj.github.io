@@ -43,8 +43,8 @@ const height = 600;
 const numNodes = 30;                 
 const INFECTION_PROB = 0.006;        
 const SPREAD_SPEED = 0.012;          
-const MAX_DISTANCE = 110; // Figure footprint size kept the same            
-const NODE_RADIUS = 20;   // Increased to make nodes bigger and bolder
+const MAX_DISTANCE = 110;             
+const NODE_RADIUS = 20;   
 
 // --- Pacing Controls for Slower Shifts ---
 const STRUCTURE_TICK_RATE = 20;      
@@ -104,11 +104,12 @@ function init() {
     
     simulation = d3.forceSimulation(nodes)
         .velocityDecay(0.35) 
-        .force("link", d3.forceLink(links).id(d => d.id).distance(45).strength(0.12)) 
-        .force("charge", d3.forceManyBody().strength(-40)) // Slightly higher repulsion to handle larger nodes                          
+        // Decreased link distance from 45 to 25 and significantly boosted strength from 0.12 to 0.40
+        .force("link", d3.forceLink(links).id(d => d.id).distance(25).strength(0.40)) 
+        .force("charge", d3.forceManyBody().strength(-40))                           
         .force("x", d3.forceX(width / 2).strength(0.03)) 
         .force("y", d3.forceY(height / 2).strength(0.03))
-        .force("collision", d3.forceCollide().radius(NODE_RADIUS + 8)); // Expanded padding for bigger node sizes              
+        .force("collision", d3.forceCollide().radius(NODE_RADIUS + 8));               
     if (animationFrameId) cancelAnimationFrame(animationFrameId);
     loop();
 }
