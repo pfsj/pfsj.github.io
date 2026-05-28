@@ -1,0 +1,258 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Rough.js + D3.js Network Epidemic Simulation</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://unpkg.com/roughjs@4.5.2/bundled/rough.js"></script>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #fafafa;
+            font-family: sans-serif;
+        }
+        #canvas-container {
+            position: relative;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            border-radius: 8px;
+            background: #ffffff;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container">
+        <canvas id="network-canvas" width="600" height="600"></canvas>
+    </div>
+
+<script>
+const width = 600;
+const height = 600;
+
+// --- Simulation Parameters ---
+const numNodes = 30;                 
+const INFECTION_PROB = 0.006;        
+const SPREAD_SPEED = 0.012;          
+const MAX_DISTANCE = 150;            
+const NODE_RADIUS = 16;              // Increased from 12 to 16 for a bolder visual look
+
+// --- Pacing Controls for Slower Shifts ---
+const STRUCTURE_TICK_RATE = 20;      
+const SHUFFLE_COUNT = 1;             
+
+const canvas = document.getElementById('network-canvas');
+const ctx = canvas.getContext('2d');
+const rc = rough.canvas(canvas);
+
+let nodes = [];
+let links = [];
+let simulation;
+let isResetting = false;
+let animationFrameId;
+let frameCounter = 0;
+
+// Helper function to calculate how many links a node currently has
+function getNodeDegree(nodeId) {
+    return links.filter(l => {
+        const sId = typeof l.source === 'object' ? l.source.id : l.source;
+        const tId = typeof l.target === 'object' ? l.target.id : l.target;
+        return sId === nodeId || tId === nodeId;
+    }).length;
+}
+
+function init() {
+    isResetting = false;
+    frameCounter = 0;
+
+    // Initialize Nodes scattered in a wide ring layout
+    nodes = Array.from({ length: numNodes }, (_, i) => {
+        const isInfectedSeed = (i === 3 || i === 18); 
+        const angle = (i / numNodes) * Math.PI * 2;
+        const radius = 160 + (Math.random() - 0.5) * 30; 
+        return {
+            id: i,
+            x: width / 2 + Math.cos(angle) * radius,
+            y: height / 2 + Math.sin(angle) * radius,
+            status: isInfectedSeed ? 'infected' : 'susceptible',
+            infectionProgress: isInfectedSeed ? 1.0 : 0.0 
+        };
+    });
+
+    // Populate a sparse initial stable pool of links (around 15 links total)
+    links = [];
+    let initialAttempts = 0;
+    while (links.length < 15 && initialAttempts < 300) {
+        const i = Math.floor(Math.random() * numNodes);
+        const j = Math.floor(Math.random() * numNodes);
+        if (i !== j) {
+            const alreadyLinked = links.some(l => (l.source === i && l.target === j) || (l.source === j && l.target === i));
+            if (!alreadyLinked && getNodeDegree(i) < 2 && getNodeDegree(j) < 2) {
+                links.push({ source: i, target: j });
+            }
+        }
+        initialAttempts++;
+    }
+
+    if (simulation) simulation.stop();
+    
+    // Configured D3 physics for lazy, low-friction fluid drift
+    simulation = d3.forceSimulation(nodes)
+        .velocityDecay(0.35) 
+        .force("link", d3.forceLink(links).id(d => d.id).distance(75).strength(0.12)) // Adjusted distance for larger nodes
+        .force("charge", d3.forceManyBody().strength(-60))                             // Adjusted repulsion to handle size increase
+        .force("x", d3.forceX(width / 2).strength(0.03)) 
+        .force("y", d3.forceY(height / 2).strength(0.03))
+        .force("collision", d3.forceCollide().radius(NODE_RADIUS + 10));               // Collision radius remains proportional
+
+    if (animationFrameId) cancelAnimationFrame(animationFrameId);
+    loop();
+}
+
+function loop() {
+    updateNetwork();
+    draw();
+    animationFrameId = requestAnimationFrame(loop);
+}
+
+function updateNetwork() {
+    simulation.alpha(0.08); 
+    frameCounter++;
+
+    // Bounding Box Constraints
+    nodes.forEach(node => {
+        if (node.x < NODE_RADIUS) { node.x = NODE_RADIUS; if(node.vx) node.vx *= -0.1; }
+        else if (node.x > width - NODE_RADIUS) { node.x = width - NODE_RADIUS; if(node.vx) node.vx *= -0.1; }
+
+        if (node.y < NODE_RADIUS) { node.y = NODE_RADIUS; if(node.vy) node.vy *= -0.1; }
+        else if (node.y > height - NODE_RADIUS) { node.y = height - NODE_RADIUS; if(node.vy) node.vy *= -0.1; }
+    });
+
+    // Degree-Capped Link Swap Mechanism
+    if (frameCounter % STRUCTURE_TICK_RATE === 0 && links.length > 5) {
+        for (let k = 0; k < SHUFFLE_COUNT; k++) {
+            const removeIndex = Math.floor(Math.random() * links.length);
+            links.splice(removeIndex, 1);
+
+            let linkForged = false;
+            let searchAttempts = 0;
+
+            while (!linkForged && searchAttempts < 80) {
+                const i = Math.floor(Math.random() * numNodes);
+                const j = Math.floor(Math.random() * numNodes);
+                
+                if (i !== j) {
+                    const u = nodes[i];
+                    const v = nodes[j];
+                    const dist = Math.hypot(u.x - v.x, u.y - v.y);
+
+                    if (dist < MAX_DISTANCE) {
+                        const alreadyLinked = links.some(l => {
+                            const sId = typeof l.source === 'object' ? l.source.id : l.source;
+                            const tId = typeof l.target === 'object' ? l.target.id : l.target;
+                            return (sId === u.id && tId === v.id) || (sId === v.id && tId === u.id);
+                        });
+
+                        if (!alreadyLinked && getNodeDegree(u.id) < 2 && getNodeDegree(v.id) < 2) {
+                            links.push({ source: u.id, target: v.id });
+                            linkForged = true;
+                        }
+                    }
+                }
+                searchAttempts++;
+            }
+        }
+        simulation.force("link").links(links);
+    }
+
+    // Color progression
+    nodes.forEach(node => {
+        if (node.status === 'infected' && node.infectionProgress < 1.0) {
+            node.infectionProgress = Math.min(1.0, node.infectionProgress + SPREAD_SPEED);
+        }
+    });
+
+    // Contagion spread along links
+    links.forEach(link => {
+        const s = link.source;
+        const t = link.target;
+        
+        if (typeof s === 'object' && typeof t === 'object') {
+            if (s.status === 'infected' && t.status === 'susceptible' && Math.random() < INFECTION_PROB) {
+                t.status = 'infected';
+            }
+            if (t.status === 'infected' && s.status === 'susceptible' && Math.random() < INFECTION_PROB) {
+                s.status = 'infected';
+            }
+        }
+    });
+
+    // Halftime Reset Evaluator (Restarts when >= 50% are red)
+    const infectedCount = nodes.filter(n => n.status === 'infected').length;
+    if (infectedCount >= (numNodes / 2) && !isResetting) {
+        isResetting = true;
+        setTimeout(() => {
+            init();
+        }, 2500); 
+    }
+}
+
+function draw() {
+    ctx.clearRect(0, 0, width, height);
+
+    // Draw Edges
+    links.forEach(link => {
+        if (typeof link.source === 'object' && typeof link.target === 'object') {
+            rc.line(link.source.x, link.source.y, link.target.x, link.target.y, {
+                stroke: '#d8d8d8',
+                strokeWidth: 1.2,
+                roughness: 1.0,
+                bowing: 0.8
+            });
+        }
+    });
+
+    // Draw Nodes with clipping mask
+    nodes.forEach(node => {
+        ctx.save();
+        
+        rc.circle(node.x, node.y, NODE_RADIUS, {
+            stroke: '#4682b4',
+            strokeWidth: 1.2,
+            fill: '#70a1ff',
+            fillStyle: 'solid',
+            roughness: 0.8
+        });
+
+        if (node.infectionProgress > 0) {
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, NODE_RADIUS + 1, 0, Math.PI * 2);
+            ctx.clip(); 
+
+            const currentRedRadius = node.infectionProgress * NODE_RADIUS;
+
+            rc.circle(node.x, node.y, currentRedRadius, {
+                stroke: '#b23b3b',
+                strokeWidth: 1.2,
+                fill: '#d9534f',
+                fillStyle: 'solid',
+                roughness: 0.6
+            });
+        }
+        
+        ctx.restore();
+    });
+}
+
+init();
+</script>
+</body>
+</html>
