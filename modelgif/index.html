@@ -8,7 +8,7 @@
     <style>
         body {
             margin: 0;
-            background-color: #fafafa;
+            background-color: #ffffff; /* Changed to default white */
             font-family: sans-serif;
             min-height: 100vh;
         }
@@ -104,7 +104,6 @@ function init() {
     
     simulation = d3.forceSimulation(nodes)
         .velocityDecay(0.35) 
-        // Decreased link distance from 45 to 25 and significantly boosted strength from 0.12 to 0.40
         .force("link", d3.forceLink(links).id(d => d.id).distance(25).strength(0.40)) 
         .force("charge", d3.forceManyBody().strength(-40))                           
         .force("x", d3.forceX(width / 2).strength(0.03)) 
