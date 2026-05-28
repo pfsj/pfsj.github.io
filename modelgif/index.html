@@ -8,7 +8,6 @@
     <style>
         body {
             margin: 0;
-            background-color: #ffffff; /* Changed to default white */
             font-family: sans-serif;
             min-height: 100vh;
         }
@@ -61,6 +60,9 @@ let isResetting = false;
 let animationFrameId;
 let frameCounter = 0;
 
+// --- Rough.js Cache to prevent shaking ---
+let nodeCache = {};
+
 function getNodeDegree(nodeId) {
     return links.filter(l => {
         const sId = typeof l.source === 'object' ? l.source.id : l.source;
@@ -72,6 +74,7 @@ function getNodeDegree(nodeId) {
 function init() {
     isResetting = false;
     frameCounter = 0;
+    nodeCache = {}; // Reset cache
 
     nodes = Array.from({ length: numNodes }, (_, i) => {
         const isInfectedSeed = (i === 3 || i === 18); 
@@ -196,6 +199,44 @@ function updateNetwork() {
     }
 }
 
+// Helper to generate a pre-compiled rough shape and cache it
+function getCachedNodeDrawable(id, type, radius) {
+    const key = `${id}-${type}-${radius.toFixed(1)}`;
+    if (!nodeCache[key]) {
+        const generator = rc.generator;
+        if (type === 'susceptible') {
+            nodeCache[key] = generator.circle(0, 0, NODE_RADIUS, {
+                stroke: '#4682b4',
+                strokeWidth: 1,
+                fill: '#70a1ff',
+                fillStyle: 'hachure', 
+                fillWeight: 1,        
+                hachureGap: 4,        
+                roughness: 0.8
+            });
+        } else if (type === 'infected-ring') {
+            // Draws just a red outer perimeter ring with no fill lines inside
+            nodeCache[key] = generator.circle(0, 0, NODE_RADIUS, {
+                stroke: '#b23b3b',
+                strokeWidth: 1,
+                roughness: 0.8
+            });
+        } else if (type === 'infected-fill') {
+            // Draws the inner growing sketchy lines (borderless or small border matching fill)
+            nodeCache[key] = generator.circle(0, 0, radius, {
+                stroke: '#b23b3b',
+                strokeWidth: 0.5,
+                fill: '#d9534f',
+                fillStyle: 'hachure',
+                fillWeight: 1,
+                hachureGap: 3,        
+                roughness: 0.6
+            });
+        }
+    }
+    return nodeCache[key];
+}
+
 function draw() {
     ctx.clearRect(0, 0, width, height);
 
@@ -204,39 +245,31 @@ function draw() {
         if (typeof link.source === 'object' && typeof link.target === 'object') {
             rc.line(link.source.x, link.source.y, link.target.x, link.target.y, {
                 stroke: '#d8d8d8',
-                strokeWidth: 0.8, 
-                roughness: 1.0,
-                bowing: 0.8
+                strokeWidth: 1.2, 
+                roughness: 0.4, 
+                bowing: 0.2
             });
         }
     });
 
-    // Draw Nodes with clipping mask
+    // Draw Nodes
     nodes.forEach(node => {
         ctx.save();
+        ctx.translate(node.x, node.y);
         
-        rc.circle(node.x, node.y, NODE_RADIUS, {
-            stroke: '#4682b4',
-            strokeWidth: 0.8,
-            fill: '#70a1ff',
-            fillStyle: 'solid',
-            roughness: 0.8
-        });
-
         if (node.infectionProgress > 0) {
-            ctx.beginPath();
-            ctx.arc(node.x, node.y, NODE_RADIUS + 1, 0, Math.PI * 2);
-            ctx.clip(); 
+            // 1. Draw the base ring, now completely RED instead of blue
+            const redOuterRing = getCachedNodeDrawable(node.id, 'infected-ring', NODE_RADIUS);
+            rc.draw(redOuterRing);
 
+            // 2. Draw the growing red sketchy fill inside
             const currentRedRadius = node.infectionProgress * NODE_RADIUS;
-
-            rc.circle(node.x, node.y, currentRedRadius, {
-                stroke: '#b23b3b',
-                strokeWidth: 0.8,
-                fill: '#d9534f',
-                fillStyle: 'solid',
-                roughness: 0.6
-            });
+            const infectedFill = getCachedNodeDrawable(node.id, 'infected-fill', currentRedRadius);
+            rc.draw(infectedFill);
+        } else {
+            // Node is healthy: draw full sketchy blue filled circle with blue border
+            const baseShape = getCachedNodeDrawable(node.id, 'susceptible', NODE_RADIUS);
+            rc.draw(baseShape);
         }
         
         ctx.restore();
