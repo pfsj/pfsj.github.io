@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Rough.js D3 Network</title>
+	<style>
+		body {
+			margin: 0;
+			font-family: Arial, sans-serif;
+			background: #fafafa;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			min-height: 100vh;
+		}
+		svg {
+			background: #ffffff;
+			border: 1px solid #ddd;
+		}
+		.label {
+			font-size: 14px;
+			fill: #222;
+			text-anchor: middle;
+			dominant-baseline: middle;
+			pointer-events: none;
+		}
+	</style>
+</head>
+<body>
+	<svg id="network" width="620" height="620"></svg>
+
+	<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+	<script src="https://cdn.jsdelivr.net/npm/roughjs@4.5.2/bundled/rough.js"></script>
+	<script>
+		const svg = d3.select("#network");
+		const width = +svg.attr("width");
+		const height = +svg.attr("height");
+		const nodeRadius = 27;
+
+		const nodes = [
+			{ id: "Alex", x: 220, y: 180 },
+			{ id: "Blair", x: 360, y: 140 },
+			{ id: "Casey", x: 320, y: 280 },
+			{ id: "Drew", x: 500, y: 140 },
+			{ id: "Evan", x: 620, y: 330 }
+		];
+
+		const links = [
+			{ source: "Alex", target: "Blair" },
+			{ source: "Blair", target: "Casey" },
+			{ source: "Casey", target: "Alex" },
+			{ source: "Blair", target: "Drew" }
+		];
+
+		const color = d3.scaleOrdinal(d3.schemeTableau10).domain(nodes.map(d => d.id));
+
+		const linkLayer = svg.append("g");
+		const nodeLayer = svg.append("g");
+		const labelLayer = svg.append("g");
+
+		const linkSelection = linkLayer
+			.selectAll("line")
+			.data(links)
+			.join("line")
+			.attr("stroke", "#444")
+			.attr("stroke-width", 2);
+
+		const nodeSelection = nodeLayer
+			.selectAll("circle")
+			.data(nodes, d => d.id)
+			.join("circle")
+			.attr("r", nodeRadius)
+			.attr("stroke", "#111")
+			.attr("stroke-width", 2)
+			.attr("fill", d => color(d.id));
+
+		const simulation = d3.forceSimulation(nodes)
+			.force("link", d3.forceLink(links).id(d => d.id).distance(140).strength(0.7))
+			.force("charge", d3.forceManyBody().strength(-220))
+			.force("x", d3.forceX(width / 2).strength(0.03))
+			.force("y", d3.forceY(height / 2).strength(0.03))
+			.force("collide", d3.forceCollide(34))
+			.alpha(1)
+			.alphaDecay(0.01)
+			.alphaTarget(0.08)
+			.velocityDecay(0.45)
+			.on("tick", () => {
+				constrainNodes();
+				render();
+			});
+
+		nodeSelection.call(
+			d3.drag()
+				.on("start", dragstarted)
+				.on("drag", dragged)
+				.on("end", dragended)
+		);
+
+		function constrainNodes() {
+			nodes.forEach(n => {
+				n.x = Math.max(nodeRadius, Math.min(width - nodeRadius, n.x));
+				n.y = Math.max(nodeRadius, Math.min(height - nodeRadius, n.y));
+			});
+		}
+
+		function render() {
+			linkSelection
+				.attr("x1", d => d.source.x)
+				.attr("y1", d => d.source.y)
+				.attr("x2", d => d.target.x)
+				.attr("y2", d => d.target.y);
+
+			nodeSelection
+				.attr("cx", d => d.x)
+				.attr("cy", d => d.y);
+
+			labelLayer
+				.selectAll("text")
+				.data(nodes, d => d.id)
+				.join("text")
+				.attr("class", "label")
+				.attr("x", d => d.x)
+				.attr("y", d => d.y)
+				.text(d => d.id);
+		}
+
+		function dragstarted(event, d) {
+			if (!event.active) simulation.alphaTarget(0.18).restart();
+			d.fx = d.x;
+			d.fy = d.y;
+		}
+
+		function dragged(event, d) {
+			d.fx = Math.max(nodeRadius, Math.min(width - nodeRadius, event.x));
+			d.fy = Math.max(nodeRadius, Math.min(height - nodeRadius, event.y));
+		}
+
+		function dragended(event, d) {
+			if (!event.active) simulation.alphaTarget(0.08);
+			d.fx = null;
+			d.fy = null;
+		}
+	</script>
+</body>
+</html>
