@@ -73,11 +73,11 @@
 
         <script>
             const data = [
-                { V1: 0.01, V2: 0.009903997, low: 0.000000000, high: 0.005322398 },
-                { V1: 0.25, V2: 0.1814102, low: 0.1552221, high: 0.2038360 },
-                { V1: 0.50, V2: 0.2959895, low: 0.2826978, high: 0.2962963 },
-                { V1: 0.75, V2: 0.3579949, low: 0.3367071, high: 0.3703704 },
-                { V1: 0.99, V2: 0.3823753, low: 0.3682925, high: 0.3915344 }
+                { V1: 0.01, V2: 0.005230315, low: -0.176655697, high: 0.1729032 },
+                { V1: 0.25, V2: 0.174574244, low: 0.005395268, high: 0.3122012 },
+                { V1: 0.50, V2: 0.271613271, low: 0.136061453, high: 0.4019319 },
+                { V1: 0.75, V2: 0.331743144, low: 0.201114370, high: 0.4546322 },
+                { V1: 0.99, V2: 0.357667003, low: 0.216622946, high: 0.4651901 }
             ];
 
             const svg = d3.select("#chart");
@@ -96,7 +96,7 @@
 
             const y = d3
                 .scaleLinear()
-                .domain([0,0.5])
+                .domain([-0.25,0.75])
                 .nice()
                 .range([innerHeight, 0]);
 
@@ -104,6 +104,15 @@
                 .attr("class", "grid")
                 .call(d3.axisLeft(y).tickSize(-innerWidth).tickFormat(""));
 
+            g.append("line")
+                .attr("x1", 0)
+                .attr("x2", innerWidth)
+                .attr("y1", y(0))
+                .attr("y2", y(0))
+                .attr("stroke", "#666")
+                .attr("stroke-width", 1.5)
+                .attr("stroke-dasharray", "5,5");
+                
             g.append("g")
                 .attr("class", "axis")
                 .attr("transform", `translate(0,${innerHeight})`)
@@ -175,21 +184,21 @@
                 const whisker = rc.line(cx, yLow, cx, yHigh, {
                     stroke: dotColor,
                     strokeWidth: 1.7,
-                    roughness: 1.2
+                    roughness: 0.0
                 });
                 pointGroup.appendChild(whisker);
 
                 const capTop = rc.line(cx - capWidth, yHigh, cx + capWidth, yHigh, {
                     stroke: dotColor,
                     strokeWidth: 1.4,
-                    roughness: 1.2
+                    roughness: 0
                 });
                 pointGroup.appendChild(capTop);
 
                 const capBottom = rc.line(cx - capWidth, yLow, cx + capWidth, yLow, {
                     stroke: dotColor,
                     strokeWidth: 1.4,
-                    roughness: 1.2
+                    roughness: 0
                 });
                 pointGroup.appendChild(capBottom);
 
