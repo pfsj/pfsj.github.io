@@ -1,0 +1,225 @@
+    <!doctype html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Burden Plot (Rough.js + D3)</title>
+        <script src="https://d3js.org/d3.v7.min.js"></script>
+        <script src="https://unpkg.com/roughjs@4.5.2/bundled/rough.js"></script>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            * {
+                font-family: "Montserrat", sans-serif;
+            }
+            body {
+                margin: 0;
+                background: #fff;
+                color: #222;
+            }
+            .wrap {
+                max-width: 760px;
+                margin: 24px auto;
+                padding: 0 16px;
+            }
+            h1 {
+                margin: 0 0 12px;
+                font-size: 1.05rem;
+                font-weight: 600;
+                text-align: center;
+            }
+            #chart {
+                border: 1px solid #ddd;
+                border-radius: 8px;
+                background: #fff;
+                display: block;
+                margin: 0 auto;
+            }
+            .axis text {
+                font-size: 12px;
+                fill: #333;
+            }
+            .axis path,
+            .axis line {
+                stroke: #666;
+            }
+            .grid line {
+                stroke: #e9e9e9;
+            }
+            .grid path {
+                stroke: none;
+            }
+            .label {
+                font-size: 16px;
+                fill: #333;
+            }
+            .hover-label {
+                font-size: 11px;
+                fill: #222;
+                text-anchor: middle;
+                pointer-events: none;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="wrap">
+            <h1>Estimated of PAF for Methamphetamine</h1>
+            <svg id="chart" width="700" height="520"></svg>
+        </div>
+
+        <script>
+            const data = [
+                { V1: 0.01, V2: 0.009903997, low: 0.000000000, high: 0.005322398 },
+                { V1: 0.25, V2: 0.1814102, low: 0.1552221, high: 0.2038360 },
+                { V1: 0.50, V2: 0.2959895, low: 0.2826978, high: 0.2962963 },
+                { V1: 0.75, V2: 0.3579949, low: 0.3367071, high: 0.3703704 },
+                { V1: 0.99, V2: 0.3823753, low: 0.3682925, high: 0.3915344 }
+            ];
+
+            const svg = d3.select("#chart");
+            const width = +svg.attr("width");
+            const height = +svg.attr("height");
+            const margin = { top: 30, right: 30, bottom: 60, left: 80 };
+            const innerWidth = width - margin.left - margin.right;
+            const innerHeight = height - margin.top - margin.bottom;
+
+            const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+
+            const x = d3
+                .scaleLinear()
+                .domain([-0.1, 1.1])
+                .range([0, innerWidth]);
+
+            const y = d3
+                .scaleLinear()
+                .domain([0,0.5])
+                .nice()
+                .range([innerHeight, 0]);
+
+            g.append("g")
+                .attr("class", "grid")
+                .call(d3.axisLeft(y).tickSize(-innerWidth).tickFormat(""));
+
+            g.append("g")
+                .attr("class", "axis")
+                .attr("transform", `translate(0,${innerHeight})`)
+                .call(
+                    d3
+                        .axisBottom(x)
+                        .tickValues([0, 0.25, 0.5, 0.75, 1])
+                        .tickFormat(d => (d === 1 ? "1.0" : `${d}`))
+                );
+
+            g.append("g")
+                .attr("class", "axis")
+                .call(d3.axisLeft(y));
+
+            g.append("text")
+                .attr("class", "label")
+                .attr("x", innerWidth / 2)
+                .attr("y", innerHeight + 45)
+                .attr("text-anchor", "middle")
+                .text("% reduction in methamphetamine use");
+
+            g.append("text")
+                .attr("class", "label")
+                .attr("transform", "rotate(-90)")
+                .attr("x", -innerHeight / 2)
+                .attr("y", -55)
+                .attr("text-anchor", "middle")
+                .text("PAF Estimate [95% simulation interval]");
+
+            const rc = rough.svg(svg.node());
+            const dotColor = "#1f77b4";
+            const dotRadius = 6;
+            const capWidth = 10;
+            const highlightPad = 8;
+            const fmt = d3.format(".3f");
+            const fmtPct = d3.format(".1%");
+
+            data.forEach(d => {
+                const cx = margin.left + x(d.V1);
+                const yLow = margin.top + y(d.low);
+                const yHigh = margin.top + y(d.high);
+                const yMed = margin.top + y(d.V2);
+
+                const pointGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                svg.node().appendChild(pointGroup);
+
+                const highlight = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                highlight.setAttribute("x", cx - capWidth - highlightPad);
+                highlight.setAttribute("y", yHigh - highlightPad);
+                highlight.setAttribute("width", 2 * (capWidth + highlightPad));
+                highlight.setAttribute("height", yLow - yHigh + 2 * highlightPad);
+                highlight.setAttribute("rx", 5);
+                highlight.setAttribute("ry", 5);
+                highlight.setAttribute("fill", "rgba(255, 165, 0, 0.14)");
+                highlight.setAttribute("stroke", "#ff8c00");
+                highlight.setAttribute("stroke-width", "2");
+                highlight.style.display = "none";
+                highlight.style.pointerEvents = "none";
+                pointGroup.appendChild(highlight);
+
+                const hoverText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                hoverText.setAttribute("class", "hover-label");
+                hoverText.setAttribute("x", cx);
+                hoverText.setAttribute("y", yHigh - highlightPad - 10);
+                hoverText.textContent = `${fmtPct(d.V2)} [${fmtPct(d.low)}, ${fmtPct(d.high)}]`;
+                hoverText.style.display = "none";
+                pointGroup.appendChild(hoverText);
+
+                const whisker = rc.line(cx, yLow, cx, yHigh, {
+                    stroke: dotColor,
+                    strokeWidth: 1.7,
+                    roughness: 1.2
+                });
+                pointGroup.appendChild(whisker);
+
+                const capTop = rc.line(cx - capWidth, yHigh, cx + capWidth, yHigh, {
+                    stroke: dotColor,
+                    strokeWidth: 1.4,
+                    roughness: 1.2
+                });
+                pointGroup.appendChild(capTop);
+
+                const capBottom = rc.line(cx - capWidth, yLow, cx + capWidth, yLow, {
+                    stroke: dotColor,
+                    strokeWidth: 1.4,
+                    roughness: 1.2
+                });
+                pointGroup.appendChild(capBottom);
+
+                const dot = rc.circle(cx, yMed, dotRadius * 2, {
+                    stroke: dotColor,
+                    strokeWidth: 1.5,
+                    fill: dotColor,
+                    fillStyle: "solid",
+                    roughness: 1.2
+                });
+                pointGroup.appendChild(dot);
+
+                const hitbox = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                hitbox.setAttribute("x", cx - capWidth - highlightPad - 6);
+                hitbox.setAttribute("y", yHigh - highlightPad - 6);
+                hitbox.setAttribute("width", 2 * (capWidth + highlightPad + 6));
+                hitbox.setAttribute("height", yLow - yHigh + 2 * (highlightPad + 6));
+                hitbox.setAttribute("fill", "transparent");
+                hitbox.style.cursor = "pointer";
+                pointGroup.appendChild(hitbox);
+
+                hitbox.addEventListener("mouseenter", () => {
+                    highlight.style.display = "block";
+                    hoverText.style.display = "block";
+                });
+                hitbox.addEventListener("mouseleave", () => {
+                    highlight.style.display = "none";
+                    hoverText.style.display = "none";
+                });
+            });
+        </script>
+    </body>
+    </html>
