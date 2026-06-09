@@ -73,11 +73,11 @@
 
         <script>
             const data = [
-                { V1: 0.01, V2: 0.01002338, low: -0.1820920, high: 0.1643403 },
-                { V1: 0.25, V2: 0.17079621, low: 0.0051162, high: 0.3047203 },
-                { V1: 0.50, V2: 0.27752626, low: 0.1398275, high: 0.3951954 },
-                { V1: 0.75, V2: 0.33456840, low: 0.2092781, high: 0.4443711 },
-                { V1: 0.99, V2: 0.35743605, low: 0.2272672, high: 0.4737862 }
+                { V1: 0.14, V2: 0.01002338, low: -0.1820920, high: 0.1643403 },
+                { V1: 0.105, V2: 0.17079621, low: 0.0051162, high: 0.3047203 },
+                { V1: 0.07, V2: 0.27752626, low: 0.1398275, high: 0.3951954 },
+                { V1: 0.035, V2: 0.33456840, low: 0.2092781, high: 0.4443711 },
+                { V1: 0.0, V2: 0.35743605, low: 0.2272672, high: 0.4737862 }
             ];
 
             const svg = d3.select("#chart");
@@ -91,7 +91,7 @@
 
             const x = d3
                 .scaleLinear()
-                .domain([-0.1, 1.1])
+                .domain([-0.01, 0.15])
                 .range([0, innerWidth]);
 
             const y = d3
@@ -119,7 +119,7 @@
                 .call(
                     d3
                         .axisBottom(x)
-                        .tickValues([0, 0.25, 0.5, 0.75, 1])
+                        .tickValues([0, 0.035, 0.07, 0.105, 0.14])
                         .tickFormat(d => (d === 1 ? "1.0" : `${d}`))
                 );
 
@@ -132,7 +132,7 @@
                 .attr("x", innerWidth / 2)
                 .attr("y", innerHeight + 45)
                 .attr("text-anchor", "middle")
-                .text("% reduction in methamphetamine use");
+                .text("% of MSM who use methamphetamine");
 
             g.append("text")
                 .attr("class", "label")
