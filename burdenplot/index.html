@@ -58,8 +58,12 @@
                 fill: #333;
             }
             .hover-label {
-                font-size: 11px;
-                fill: #222;
+                font-size: 17px;
+                font-weight: 600;
+                fill: #111;
+                paint-order: stroke;
+                stroke: #fff;
+                stroke-width: 3px;
                 text-anchor: middle;
                 pointer-events: none;
             }
@@ -73,11 +77,11 @@
 
         <script>
             const data = [
-                { V1: 0.01, V2: 0.01002338, low: -0.1820920, high: 0.1643403 },
-                { V1: 0.25, V2: 0.17079621, low: 0.0051162, high: 0.3047203 },
-                { V1: 0.50, V2: 0.27752626, low: 0.1398275, high: 0.3951954 },
-                { V1: 0.75, V2: 0.33456840, low: 0.2092781, high: 0.4443711 },
-                { V1: 0.99, V2: 0.35743605, low: 0.2272672, high: 0.4737862 }
+                { V1: 0.01, V2: -0.01002338, low: 0.1820920, high: -0.1643403 },
+                { V1: 0.25, V2: -0.17079621, low: -0.0051162, high: -0.3047203 },
+                { V1: 0.50, V2: -0.27752626, low: -0.1398275, high: -0.3951954 },
+                { V1: 0.75, V2: -0.33456840, low: -0.2092781, high: -0.4443711 },
+                { V1: 0.99, V2: -0.35743605, low: -0.2272672, high: -0.4737862 }
             ];
 
             const svg = d3.select("#chart");
@@ -94,9 +98,14 @@
                 .domain([-0.1, 1.1])
                 .range([0, innerWidth]);
 
+            const yValues = data.flatMap(d => [d.low, d.high, d.V2]);
+            const yMin = d3.min(yValues);
+            const yMax = d3.max(yValues);
+            const yPad = (yMax - yMin || 1) * 0.15;
+
             const y = d3
                 .scaleLinear()
-                .domain([-0.25,0.75])
+                .domain([yMin - yPad, yMax + yPad])
                 .nice()
                 .range([innerHeight, 0]);
 
@@ -120,12 +129,12 @@
                     d3
                         .axisBottom(x)
                         .tickValues([0, 0.25, 0.5, 0.75, 1])
-                        .tickFormat(d => (d === 1 ? "1.0" : `${d}`))
+                        .tickFormat(d3.format(".0%"))
                 );
 
             g.append("g")
                 .attr("class", "axis")
-                .call(d3.axisLeft(y));
+                .call(d3.axisLeft(y).tickFormat(d3.format(".0%")));
 
             g.append("text")
                 .attr("class", "label")
@@ -140,7 +149,7 @@
                 .attr("x", -innerHeight / 2)
                 .attr("y", -55)
                 .attr("text-anchor", "middle")
-                .text("Incidence Reduction [95% simulation interval]");
+                .text("Incidence Reduction");
 
             const rc = rough.svg(svg.node());
             const dotColor = "#1f77b4";
@@ -155,15 +164,17 @@
                 const yLow = margin.top + y(d.low);
                 const yHigh = margin.top + y(d.high);
                 const yMed = margin.top + y(d.V2);
+                const yTop = Math.min(yLow, yHigh);
+                const yBottom = Math.max(yLow, yHigh);
 
                 const pointGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
                 svg.node().appendChild(pointGroup);
 
                 const highlight = document.createElementNS("http://www.w3.org/2000/svg", "rect");
                 highlight.setAttribute("x", cx - capWidth - highlightPad);
-                highlight.setAttribute("y", yHigh - highlightPad);
+                highlight.setAttribute("y", yTop - highlightPad);
                 highlight.setAttribute("width", 2 * (capWidth + highlightPad));
-                highlight.setAttribute("height", yLow - yHigh + 2 * highlightPad);
+                highlight.setAttribute("height", yBottom - yTop + 2 * highlightPad);
                 highlight.setAttribute("rx", 5);
                 highlight.setAttribute("ry", 5);
                 highlight.setAttribute("fill", "rgba(255, 165, 0, 0.14)");
@@ -175,27 +186,27 @@
 
                 const hoverText = document.createElementNS("http://www.w3.org/2000/svg", "text");
                 hoverText.setAttribute("class", "hover-label");
-                hoverText.setAttribute("x", cx);
-                hoverText.setAttribute("y", yHigh - highlightPad - 10);
+                hoverText.setAttribute("x", margin.left + innerWidth / 2);
+                hoverText.setAttribute("y", margin.top + 20);
                 hoverText.textContent = `${fmtPct(d.V2)} [${fmtPct(d.low)}, ${fmtPct(d.high)}]`;
                 hoverText.style.display = "none";
                 pointGroup.appendChild(hoverText);
 
-                const whisker = rc.line(cx, yLow, cx, yHigh, {
+                const whisker = rc.line(cx, yTop, cx, yBottom, {
                     stroke: dotColor,
                     strokeWidth: 1.7,
                     roughness: 0.0
                 });
                 pointGroup.appendChild(whisker);
 
-                const capTop = rc.line(cx - capWidth, yHigh, cx + capWidth, yHigh, {
+                const capTop = rc.line(cx - capWidth, yTop, cx + capWidth, yTop, {
                     stroke: dotColor,
                     strokeWidth: 1.4,
                     roughness: 0
                 });
                 pointGroup.appendChild(capTop);
 
-                const capBottom = rc.line(cx - capWidth, yLow, cx + capWidth, yLow, {
+                const capBottom = rc.line(cx - capWidth, yBottom, cx + capWidth, yBottom, {
                     stroke: dotColor,
                     strokeWidth: 1.4,
                     roughness: 0
@@ -213,9 +224,9 @@
 
                 const hitbox = document.createElementNS("http://www.w3.org/2000/svg", "rect");
                 hitbox.setAttribute("x", cx - capWidth - highlightPad - 6);
-                hitbox.setAttribute("y", yHigh - highlightPad - 6);
+                hitbox.setAttribute("y", yTop - highlightPad - 6);
                 hitbox.setAttribute("width", 2 * (capWidth + highlightPad + 6));
-                hitbox.setAttribute("height", yLow - yHigh + 2 * (highlightPad + 6));
+                hitbox.setAttribute("height", yBottom - yTop + 2 * (highlightPad + 6));
                 hitbox.setAttribute("fill", "transparent");
                 hitbox.style.cursor = "pointer";
                 pointGroup.appendChild(hitbox);
