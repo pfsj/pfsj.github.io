@@ -337,7 +337,7 @@
 				.attr("class", "median-label")
 				.attr("x", cx)
 				.attr("y", Math.max(y(q3) - 10, 12))
-				.text(`Median: ${d3.format(".2f")(median)}`);
+				.text(`RR: ${d3.format(".2f")(median)}`);
 
 			const isAllDifference =
 				allDifferenceCondition && normalizeConditionKey(condition) === normalizeConditionKey(allDifferenceCondition);
