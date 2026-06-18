@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+	<meta http-equiv="Pragma" content="no-cache" />
+	<meta http-equiv="Expires" content="0" />
+	<title>Risk Ratio Violin Plot</title>
+	<script src="https://d3js.org/d3.v7.min.js"></script>
+	<script src="https://unpkg.com/roughjs@4.5.2/bundled/rough.js"></script>
+	<style>
+		body {
+			margin: 0;
+			font-family: Arial, sans-serif;
+			font-size: 125%;
+			background: transparent;
+			color: #222;
+		}
+		.container {
+			max-width: 1100px;
+			margin: 24px auto;
+			padding: 0 16px;
+		}
+		h1 {
+			margin: 0 0 10px;
+			font-size: 25px;
+			font-weight: 600;
+			text-align: center;
+		}
+		p {
+			margin: 0 0 16px;
+			color: #555;
+			font-size: 17.5px;
+		}
+		svg {
+			width: 100%;
+			height: auto;
+			background: transparent;
+			border: 1px solid #e9e9e9;
+			border-radius: 8px;
+		}
+		.axis path,
+		.axis line {
+			stroke: #bbb;
+		}
+		.axis text {
+			fill: #444;
+			font-size: 15px;
+		}
+		.grid line {
+			stroke: #eee;
+		}
+		.grid path {
+			stroke: none;
+		}
+		.median-line {
+			pointer-events: none;
+		}
+		.violin-group {
+			cursor: pointer;
+		}
+		.violin-shape {
+			transition: fill-opacity 0.2s ease, stroke-width 0.2s ease;
+		}
+		.violin-group:hover .violin-shape {
+			fill-opacity: 0.9 !important;
+			stroke-width: 1.6 !important;
+		}
+		.median-label {
+			pointer-events: none;
+			font-size: 20px;
+			font-weight: 600;
+			text-anchor: middle;
+			fill: #222;
+			opacity: 0;
+			transition: opacity 0.2s ease;
+			dominant-baseline: auto;
+		}
+		.percentage-label {
+			pointer-events: none;
+			font-size: 30px;
+			font-weight: 600;
+			text-anchor: middle;
+			fill: #222;
+			opacity: 0;
+			transition: opacity 0.2s ease;
+			dominant-baseline: auto;
+		}
+		.violin-group:hover .median-label {
+			opacity: 1;
+		}
+		.violin-group:hover .percentage-label {
+			opacity: 1;
+		}
+	</style>
+</head>
+<body>
+	<div class="container">
+		<svg id="chart" viewBox="0 0 1050 560" role="img" aria-label="Risk ratio distributions by condition (focused on 25th to 75th percentile)"></svg>
+	</div>
+
+	<script>
+		// Load CSV file and process data
+		async function loadAndPlotData() {
+			const cleanCell = value => value.trim().replace(/^['"]|['"]$/g, "");
+			const formatCondition = value => cleanCell(value).replace(/\./g, " ");
+
+			// Load CSV file with cache-busting so updates are reflected immediately.
+			// Optional: pass ?csv=your-file.csv in the URL to use a new file in this folder.
+			const csvFromQuery = new URLSearchParams(window.location.search).get("csv");
+			const csvCandidates = csvFromQuery
+				? [csvFromQuery]
+				: ["data.csv", "new_data.csv", "updated_data.csv"];
+
+			let csv = "";
+			let loadedFile = "";
+			let maxHeaderColumns = 0;
+			for (const fileName of csvCandidates) {
+				const url = `${fileName}${fileName.includes("?") ? "&" : "?"}v=${Date.now()}`;
+				try {
+					const response = await fetch(url, {
+						cache: "no-store",
+						headers: {
+							"Cache-Control": "no-cache, no-store, must-revalidate",
+							"Pragma": "no-cache",
+							"Expires": "0"
+						}
+					});
+					if (!response.ok) continue;
+					const candidateCsv = await response.text();
+					if (!candidateCsv.trim()) continue;
+
+					const firstNonEmptyLine = candidateCsv
+						.replace(/^\uFEFF/, "")
+						.split(/\r?\n/)
+						.map(line => line.trim())
+						.find(line => line.length > 0) || "";
+					const headerColumns = firstNonEmptyLine ? firstNonEmptyLine.split(',').length : 0;
+
+					if (headerColumns > maxHeaderColumns) {
+						maxHeaderColumns = headerColumns;
+						csv = candidateCsv;
+						loadedFile = fileName;
+					}
+				} catch (_) {
+					// Try next candidate
+				}
+			}
+
+			if (!csv.trim()) {
+				throw new Error("No CSV file could be loaded. Use ?csv=your-file.csv if needed.");
+			}
+			console.log(`Loaded CSV: ${loadedFile}`);
+			
+			// Parse CSV: first non-empty row is header with condition names, subsequent rows are study data
+			const lines = csv
+				.replace(/^\uFEFF/, "")
+				.split(/\r?\n/)
+				.map(line => line.trim())
+				.filter(line => line.length > 0);
+			const conditions = lines[0].split(',').map(formatCondition);
+			
+			// Transform CSV rows into flat data structure
+			const data = [];
+			for (let rowIdx = 1; rowIdx < lines.length; rowIdx++) {
+				const values = lines[rowIdx].split(',').map(s => cleanCell(s));
+				for (let colIdx = 0; colIdx < conditions.length; colIdx++) {
+					const riskRatio = parseFloat(values[colIdx]);
+					if (!isNaN(riskRatio)) {
+						data.push({
+							condition: conditions[colIdx],
+							studyId: values[0],
+							riskRatio: riskRatio
+						});
+					}
+				}
+			}
+			
+			plotChart(data, conditions);
+		}
+
+		function plotChart(data, conditions) {
+
+		const plottedConditions = conditions.filter(c => {
+			const normalized = c.trim().toLowerCase();
+			return normalized !== "zero" && normalized !== "0";
+		});
+
+		const svg = d3.select("#chart");
+		const width = 1050;
+		const height = 560;
+		const margin = { top: 20, right: 30, bottom: 80, left: 100 };
+		const innerWidth = width - margin.left - margin.right;
+		const innerHeight = height - margin.top - margin.bottom;
+
+		const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+		const roughSvg = rough.svg(svg.node());
+
+		const y = d3.scaleLinear()
+			.domain([0.5, 2.4])
+			.nice()
+			.range([innerHeight, 0]);
+
+		const x = d3.scaleBand()
+			.domain(plottedConditions)
+			.range([18, innerWidth])
+			.paddingInner(0.45);
+
+		const xCenter = d => x(d.condition) + x.bandwidth() / 2;
+
+		const color = d3.scaleOrdinal()
+			.domain(plottedConditions)
+			.range(["#3b82f6", "#14b8a6", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#64748b"]);
+
+		g.append("g")
+			.attr("class", "grid")
+			.call(
+				d3.axisLeft(y)
+					.tickSize(-innerWidth)
+					.tickFormat("")
+			);
+
+		g.append("g")
+			.attr("class", "axis")
+			.call(d3.axisLeft(y));
+
+		const xAxisGroup = g.append("g")
+			.attr("class", "axis")
+			.attr("transform", `translate(0,${innerHeight})`)
+			.call(d3.axisBottom(x).tickSizeOuter(0));
+
+		g.append("text")
+			.attr("transform", "rotate(-90)")
+			.attr("x", -innerHeight / 2)
+			.attr("y", -65)
+			.attr("text-anchor", "middle")
+			.style("font-size", "16.25px")
+			.text("Risk Ratio (HIV Incidence per 100 PY)");
+
+		// Violin layer
+		const violinLayer = g.append("g").attr("class", "violin-layer");
+
+		const kernelEpanechnikov = bandwidth => v => {
+			v = v / bandwidth;
+			return Math.abs(v) <= 1 ? (0.75 * (1 - v * v)) / bandwidth : 0;
+		};
+
+		const kernelDensityEstimator = (kernel, samplePoints, values) =>
+			samplePoints.map(point => [point, d3.mean(values, value => kernel(point - value))]);
+
+		const normalizeConditionKey = value =>
+			value.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+		const allDifferenceCondition = plottedConditions.find(c => {
+			const key = normalizeConditionKey(c);
+			return key === "alldifference" || key.includes("alldifference");
+		});
+		const rrAllDifferenceValues = allDifferenceCondition
+			? data
+				.filter(d => d.condition === allDifferenceCondition)
+				.map(d => d.riskRatio)
+				.sort(d3.ascending)
+			: [];
+		const rrAllDifference = rrAllDifferenceValues.length
+			? d3.quantile(rrAllDifferenceValues, 0.5)
+			: null;
+
+		plottedConditions.forEach(condition => {
+			const violinGroup = violinLayer.append("g")
+				.attr("class", "violin-group")
+				.on("mouseenter", () => {
+					xAxisGroup.selectAll(".tick text")
+						.style("font-weight", d => (d === condition ? "700" : null));
+				})
+				.on("mouseleave", () => {
+					xAxisGroup.selectAll(".tick text")
+						.style("font-weight", null);
+				});
+
+			const values = data
+				.filter(d => d.condition === condition)
+				.map(d => d.riskRatio)
+				.sort(d3.ascending);
+
+			if (!values.length) return;
+
+			const cx = xCenter({ condition });
+
+			// Quartiles and focused range (25th - 75th percentile)
+			const q1 = d3.quantile(values, 0.25);
+			const median = d3.quantile(values, 0.5);
+			const q3 = d3.quantile(values, 0.75);
+
+			const focusedValues = values.filter(v => v >= q1 && v <= q3);
+			const densityValues = focusedValues.length >= 5 ? focusedValues : values;
+			const focusedMin = q1;
+			const focusedMax = q3;
+			const sampleStep = Math.max((focusedMax - focusedMin) / 36, 0.001);
+			const samplePoints = d3.range(focusedMin, focusedMax + sampleStep, sampleStep);
+
+			const spread = Math.max(d3.deviation(densityValues) || 0, (focusedMax - focusedMin) / 6, 0.02);
+			const bandwidth = spread * 0.85;
+			const kde = kernelDensityEstimator(kernelEpanechnikov(bandwidth), samplePoints, densityValues);
+			const maxDensity = d3.max(kde, d => d[1]) || 1;
+
+			const violinHalfWidth = x.bandwidth() * 0.42;
+			const xViolin = d3.scaleLinear().domain([0, maxDensity]).range([0, violinHalfWidth]);
+
+			const violinArea = d3.area()
+				.x0(d => cx - xViolin(d[1]))
+				.x1(d => cx + xViolin(d[1]))
+				.y(d => y(d[0]))
+				.curve(d3.curveCatmullRom);
+
+			violinGroup.append("path")
+				.datum(kde)
+				.attr("class", "violin-shape")
+				.attr("d", violinArea)
+				.attr("fill", color(condition))
+				.attr("fill-opacity", 0.62)
+				.attr("stroke", d3.color(color(condition)).darker(1).formatHex())
+				.attr("stroke-width", 1.1);
+
+			// Median line
+			violinGroup.append("line")
+				.attr("x1", cx - violinHalfWidth * 0.6)
+				.attr("x2", cx + violinHalfWidth * 0.6)
+				.attr("y1", y(median))
+				.attr("y2", y(median))
+				.attr("stroke", "#fff")
+				.attr("stroke-width", 2)
+				.attr("class", "median-line");
+
+			// Median label (shown on hover) — above each violin
+			violinGroup.append("text")
+				.attr("class", "median-label")
+				.attr("x", cx)
+				.attr("y", Math.max(y(q3) - 10, 12))
+				.text(`Median: ${d3.format(".2f")(median)}`);
+
+			const isAllDifference =
+				allDifferenceCondition && normalizeConditionKey(condition) === normalizeConditionKey(allDifferenceCondition);
+			const denominator = rrAllDifference == null ? null : (1 - rrAllDifference);
+			const percentageDecrease =
+				isAllDifference || denominator == null || denominator === 0
+					? null
+					: (1 - ((1 - median) / (1 - rrAllDifference))) * 100;
+
+			violinGroup.append("text")
+				.attr("class", "percentage-label")
+				.attr("x", innerWidth / 2)
+				.attr("y", 34)
+				.text(
+					isAllDifference
+						? ""
+						: (percentageDecrease == null || !isFinite(percentageDecrease)
+							? "Percentage decrease: N/A"
+						: `Percentage decrease: ${d3.format(".1f")(percentageDecrease)}%`
+						)
+				);
+		});
+
+		// Reference line at RR = 1
+		const refY = y(1);
+		const refLine = roughSvg.line(
+			margin.left,
+			margin.top + refY,
+			margin.left + innerWidth,
+			margin.top + refY,
+			{ stroke: "#cc4c4c", strokeWidth: 1.5, roughness: 0.8, bowing: 0.5, strokeLineDash: [2, 6] }
+		);
+		svg.node().appendChild(refLine);
+		}
+
+		loadAndPlotData().catch(err => {
+			console.error("Failed to load or plot data:", err);
+		});
+	</script>
+</body>
+</html>
