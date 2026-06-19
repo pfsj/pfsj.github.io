@@ -6,7 +6,7 @@
 	<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
 	<meta http-equiv="Pragma" content="no-cache" />
 	<meta http-equiv="Expires" content="0" />
-	<title>Risk Ratio Violin Plot</title>
+	<title>Risk Ratio Beeswarm Plot</title>
 	<script src="https://d3js.org/d3.v7.min.js"></script>
 	<script src="https://unpkg.com/roughjs@4.5.2/bundled/rough.js"></script>
 	<style>
@@ -57,15 +57,16 @@
 		.median-line {
 			pointer-events: none;
 		}
-		.violin-group {
+		.swarm-group {
 			cursor: pointer;
 		}
-		.violin-shape {
-			transition: fill-opacity 0.2s ease, stroke-width 0.2s ease;
+		.swarm-dot {
+			transition: fill-opacity 0.2s ease, stroke-width 0.2s ease, r 0.2s ease;
 		}
-		.violin-group:hover .violin-shape {
-			fill-opacity: 0.9 !important;
-			stroke-width: 1.6 !important;
+		.swarm-group:hover .swarm-dot {
+			fill-opacity: 0.95 !important;
+			stroke-width: 1.4 !important;
+			r: 5.2 !important;
 		}
 		.median-label {
 			pointer-events: none;
@@ -77,6 +78,14 @@
 			transition: opacity 0.2s ease;
 			dominant-baseline: auto;
 		}
+		.median-label-bg {
+			pointer-events: none;
+			fill: #fff;
+			stroke: #d9d9d9;
+			stroke-width: 1;
+			opacity: 0;
+			transition: opacity 0.2s ease;
+		}
 		.percentage-label {
 			pointer-events: none;
 			font-size: 30px;
@@ -87,17 +96,20 @@
 			transition: opacity 0.2s ease;
 			dominant-baseline: auto;
 		}
-		.violin-group:hover .median-label {
+		.swarm-group:hover .median-label {
 			opacity: 1;
 		}
-		.violin-group:hover .percentage-label {
+		.swarm-group:hover .median-label-bg {
+			opacity: 1;
+		}
+		.swarm-group:hover .percentage-label {
 			opacity: 1;
 		}
 	</style>
 </head>
 <body>
 	<div class="container">
-		<svg id="chart" viewBox="0 0 1050 560" role="img" aria-label="Risk ratio distributions by condition (focused on 25th to 75th percentile)"></svg>
+		<svg id="chart" viewBox="0 0 1050 560" role="img" aria-label="Risk ratio beeswarm distributions by condition (100 sampled observations per condition)"></svg>
 	</div>
 
 	<script>
@@ -198,7 +210,7 @@
 		const roughSvg = rough.svg(svg.node());
 
 		const y = d3.scaleLinear()
-			.domain([0.5, 2.4])
+			.domain([0.5, 3])
 			.nice()
 			.range([innerHeight, 0]);
 
@@ -238,16 +250,8 @@
 			.style("font-size", "16.25px")
 			.text("Risk Ratio (HIV Incidence per 100 PY)");
 
-		// Violin layer
-		const violinLayer = g.append("g").attr("class", "violin-layer");
-
-		const kernelEpanechnikov = bandwidth => v => {
-			v = v / bandwidth;
-			return Math.abs(v) <= 1 ? (0.75 * (1 - v * v)) / bandwidth : 0;
-		};
-
-		const kernelDensityEstimator = (kernel, samplePoints, values) =>
-			samplePoints.map(point => [point, d3.mean(values, value => kernel(point - value))]);
+		// Beeswarm layer
+		const swarmLayer = g.append("g").attr("class", "swarm-layer");
 
 		const normalizeConditionKey = value =>
 			value.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -266,9 +270,11 @@
 			? d3.quantile(rrAllDifferenceValues, 0.5)
 			: null;
 
+		const sampleSizePerCondition = 100;
+
 		plottedConditions.forEach(condition => {
-			const violinGroup = violinLayer.append("g")
-				.attr("class", "violin-group")
+			const swarmGroup = swarmLayer.append("g")
+				.attr("class", "swarm-group")
 				.on("mouseenter", () => {
 					xAxisGroup.selectAll(".tick text")
 						.style("font-weight", d => (d === condition ? "700" : null));
@@ -285,58 +291,67 @@
 
 			if (!values.length) return;
 
-			const cx = xCenter({ condition });
+			const sampledValues = values.length >= sampleSizePerCondition
+				? d3.shuffle(values.slice()).slice(0, sampleSizePerCondition)
+				: d3.range(sampleSizePerCondition).map(() => values[Math.floor(Math.random() * values.length)]);
 
-			// Quartiles and focused range (25th - 75th percentile)
+			const cx = xCenter({ condition });
 			const q1 = d3.quantile(values, 0.25);
 			const median = d3.quantile(values, 0.5);
 			const q3 = d3.quantile(values, 0.75);
 
-			const focusedValues = values.filter(v => v >= q1 && v <= q3);
-			const densityValues = focusedValues.length >= 5 ? focusedValues : values;
-			const focusedMin = q1;
-			const focusedMax = q3;
-			const sampleStep = Math.max((focusedMax - focusedMin) / 36, 0.001);
-			const samplePoints = d3.range(focusedMin, focusedMax + sampleStep, sampleStep);
+			const nodes = sampledValues.map(v => ({
+				riskRatio: v,
+				x: cx,
+				y: y(v)
+			}));
 
-			const spread = Math.max(d3.deviation(densityValues) || 0, (focusedMax - focusedMin) / 6, 0.02);
-			const bandwidth = spread * 0.85;
-			const kde = kernelDensityEstimator(kernelEpanechnikov(bandwidth), samplePoints, densityValues);
-			const maxDensity = d3.max(kde, d => d[1]) || 1;
+			const dotRadius = 4.2;
+			d3.forceSimulation(nodes)
+				.force("x", d3.forceX(cx).strength(0.08))
+				.force("y", d3.forceY(d => y(d.riskRatio)).strength(1))
+				.force("collide", d3.forceCollide(dotRadius + 0.4))
+				.stop()
+				.tick(220);
 
-			const violinHalfWidth = x.bandwidth() * 0.42;
-			const xViolin = d3.scaleLinear().domain([0, maxDensity]).range([0, violinHalfWidth]);
-
-			const violinArea = d3.area()
-				.x0(d => cx - xViolin(d[1]))
-				.x1(d => cx + xViolin(d[1]))
-				.y(d => y(d[0]))
-				.curve(d3.curveCatmullRom);
-
-			violinGroup.append("path")
-				.datum(kde)
-				.attr("class", "violin-shape")
-				.attr("d", violinArea)
+			swarmGroup.selectAll("circle")
+				.data(nodes)
+				.enter()
+				.append("circle")
+				.attr("class", "swarm-dot")
+				.attr("cx", d => d.x)
+				.attr("cy", d => d.y)
+				.attr("r", dotRadius)
 				.attr("fill", color(condition))
-				.attr("fill-opacity", 0.62)
+				.attr("fill-opacity", 0.72)
 				.attr("stroke", d3.color(color(condition)).darker(1).formatHex())
-				.attr("stroke-width", 1.1);
+				.attr("stroke-width", 0.8);
 
 			// Median line
-			violinGroup.append("line")
-				.attr("x1", cx - violinHalfWidth * 0.6)
-				.attr("x2", cx + violinHalfWidth * 0.6)
+			swarmGroup.append("line")
+				.attr("x1", cx - x.bandwidth() * 0.26)
+				.attr("x2", cx + x.bandwidth() * 0.26)
 				.attr("y1", y(median))
 				.attr("y2", y(median))
 				.attr("stroke", "#fff")
 				.attr("stroke-width", 2)
 				.attr("class", "median-line");
 
-			// Median label (shown on hover) — above each violin
-			violinGroup.append("text")
+			// Median label (shown on hover) with white background for readability
+			const medianLabelY = Math.min(y(q1) + 24, innerHeight - 8);
+			swarmGroup.append("rect")
+				.attr("class", "median-label-bg")
+				.attr("x", cx - 48)
+				.attr("y", medianLabelY - 22)
+				.attr("width", 96)
+				.attr("height", 28)
+				.attr("rx", 4)
+				.attr("ry", 4);
+
+			swarmGroup.append("text")
 				.attr("class", "median-label")
 				.attr("x", cx)
-				.attr("y", Math.max(y(q3) - 10, 12))
+				.attr("y", medianLabelY)
 				.text(`RR: ${d3.format(".2f")(median)}`);
 
 			const isAllDifference =
@@ -347,7 +362,7 @@
 					? null
 					: (1 - ((1 - median) / (1 - rrAllDifference))) * 100;
 
-			violinGroup.append("text")
+			swarmGroup.append("text")
 				.attr("class", "percentage-label")
 				.attr("x", innerWidth / 2)
 				.attr("y", 34)
