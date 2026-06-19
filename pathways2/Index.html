@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Convex Hull Plot with Scatter Points</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body { font-family: sans-serif; }
+        .axis path, .axis line { stroke: #000; stroke-width: 1.5px; }
+        .axis text { font-size: 12px; fill: #000; }
+        .label { font-size: 14px; font-weight: bold; }
+        .legend-title { font-weight: bold; font-size: 13px; }
+        .legend-text { font-size: 12px; }
+        .legend-item { cursor: pointer; user-select: none; }
+        .legend-item.hidden rect { fill-opacity: 0 !important; }
+        .legend-item.hidden text { fill: #aaa; }
+    </style>
+</head>
+<body>
+
+<div id="chart"></div>
+
+<script>
+// 1. Dimensions matching classic ggplot layout
+const margin = {top: 40, right: 220, bottom: 60, left: 60},
+      width = 850 - margin.left - margin.right,
+      height = 600 - margin.top - margin.bottom;
+
+const svg = d3.select("#chart")
+  .append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+  .append("g")
+    .attr("transform", `translate(${margin.left}, ${margin.top})`);
+
+// 2. Load the CSV file
+d3.csv("data_quantile75.csv").then(data => {
+    
+    // Strict parsing based on your updated column names
+    data.forEach(d => {
+        d.x = parseFloat(d["Meth"]);
+        d.y = parseFloat(d["NoMeth"]);
+        d.Condition = d["Condition"] ? d["Condition"].trim() : null;
+    });
+
+    // Remove rows missing numbers or groupings
+    const cleanData = data.filter(d => !isNaN(d.x) && !isNaN(d.y) && d.Condition);
+
+    // 3. Set up coordinate scales (forced 0 to 1.5 limits)
+    const xScale = d3.scaleLinear().domain([0, 1.25]).range([0, width]);
+    const yScale = d3.scaleLinear().domain([0, 1.25]).range([height, 0]);
+    
+    // Custom palette (yellow removed for readability)
+    const categories = Array.from(new Set(cleanData.map(d => d.Condition)));
+    const colorScale = d3.scaleOrdinal().domain(categories).range([
+        "#e41a1c", // red
+        "#377eb8", // blue
+        "#4daf4a", // green
+        "#984ea3", // purple
+        "#ff7f00", // orange
+        "#a65628", // brown
+        "#f781bf", // pink
+        "#999999", // gray
+        "#66c2a5"  // teal
+    ]);
+
+    // 4. Reference diagonal line (y = x)
+    svg.append("line")
+        .attr("x1", xScale(0)).attr("y1", yScale(0))
+        .attr("x2", xScale(2)).attr("y2", yScale(2))
+        .attr("stroke", "#333")
+        .attr("stroke-width", 1.5)
+        .attr("stroke-dasharray", "5,5");
+
+    // 5. Group data by Condition
+    const groupedData = d3.groups(cleanData, d => d.Condition);
+
+    groupedData.forEach(([condition, points]) => {
+        // CRITICAL FIX: Convert to pixel space coordinates BEFORE running d3.polygonHull
+        const pixelPoints = points.map(d => [xScale(d.x), yScale(d.y)]);
+
+        // Remove exact overlapping duplicate coordinate pairings to preserve math constraints
+        const uniquePixelPoints = Array.from(
+            new Map(pixelPoints.map(p => [`${p[0].toFixed(2)},${p[1].toFixed(2)}`, p])).values()
+        );
+
+        // Generate Hull Polygons
+        if (uniquePixelPoints.length >= 3) {
+            const hull = d3.polygonHull(uniquePixelPoints);
+            
+            if (hull) {
+                const lineGenerator = d3.line().curve(d3.curveLinearClosed);
+
+                svg.append("path")
+                    .datum(hull)
+                    .attr("d", lineGenerator)
+                    .attr("fill", colorScale(condition))
+                    .attr("fill-opacity", 0.15) // Subtle background tint mirroring alpha=0.2
+                    .attr("stroke", colorScale(condition))
+                    .attr("stroke-width", 2);
+            }
+        }
+
+        // Draw scatter points on top of the hulls so you can see your 50 points
+        svg.selectAll(`.dot-${condition.replace(/\./g, '-')}`)
+            .data(points)
+            .enter()
+            .append("circle")
+            .attr("cx", d => xScale(d.x))
+            .attr("cy", d => yScale(d.y))
+            .attr("r", 3.5)
+            .attr("fill", colorScale(condition))
+            .attr("fill-opacity", 0.7);
+    });
+
+    // 6. Generate Classical Theme Axes
+    const xAxis = d3.axisBottom(xScale).tickValues([0, 0.25, 0.5, 0.75, 1.0, 1.25]).tickFormat(d3.format(".2f")).tickSizeOuter(0);
+    const yAxis = d3.axisLeft(yScale).tickValues([0, 0.25, 0.5, 0.75, 1.0, 1.25]).tickFormat(d3.format(".2f")).tickSizeOuter(0);
+
+    svg.append("g")
+        .attr("class", "axis")
+        .attr("transform", `translate(0, ${height})`)
+        .call(xAxis);
+
+    svg.append("g")
+        .attr("class", "axis")
+        .call(yAxis);
+
+    // Axis Labels
+    svg.append("text")
+        .attr("class", "label")
+        .attr("text-anchor", "middle")
+        .attr("x", width / 2)
+        .attr("y", height + 45)
+        .text("No Methamphetamine Use (Incidence per 100py)");
+
+    svg.append("text")
+        .attr("class", "label")
+        .attr("text-anchor", "middle")
+        .attr("transform", "rotate(-90)")
+        .attr("x", -height / 2)
+        .attr("y", -40)
+        .text("Methamphetamine Use (Incidence per 100py)");
+
+    // 7. Legend with toggle functionality
+    const legendX = width + 30;
+    const legendY = 40;
+    const hiddenCategories = new Set();
+
+    const legend = svg.append("g")
+        .attr("transform", `translate(${legendX}, ${legendY})`);
+
+    legend.append("text")
+        .attr("class", "legend-title")
+        .attr("x", 0)
+        .attr("y", -10)
+        .text("Model / Condition");
+
+    categories.forEach((cat, i) => {
+        const legendRow = legend.append("g")
+            .attr("class", "legend-item")
+            .attr("transform", `translate(0, ${i * 24})`)
+            .style("cursor", "pointer");
+
+        legendRow.append("rect")
+            .attr("width", 16)
+            .attr("height", 16)
+            .attr("fill", colorScale(cat))
+            .attr("fill-opacity", 0.3)
+            .attr("stroke", colorScale(cat))
+            .attr("stroke-width", 1.5);
+
+        legendRow.append("text")
+            .attr("class", "legend-text")
+            .attr("x", 26)
+            .attr("y", 13)
+            .text(cat);
+
+        legendRow.on("click", function() {
+            if (hiddenCategories.has(cat)) {
+                hiddenCategories.delete(cat);
+                d3.select(this).classed("hidden", false);
+            } else {
+                hiddenCategories.add(cat);
+                d3.select(this).classed("hidden", true);
+            }
+
+            // Toggle hulls and points visibility
+            svg.selectAll("path").style("display", function() {
+                return hiddenCategories.size === 0 ? "block" : "block";
+            });
+
+            svg.selectAll("circle").style("display", function() {
+                for (let [cond] of groupedData) {
+                    if (hiddenCategories.has(cond)) {
+                        if (d3.select(this).attr("fill") === colorScale(cond) || true) {
+                            const point = d3.select(this).datum();
+                            if (point && point.Condition === cond) return "none";
+                        }
+                    }
+                }
+                return "block";
+            });
+
+            svg.selectAll("path").style("display", function() {
+                for (let [cond] of groupedData) {
+                    if (hiddenCategories.has(cond)) {
+                        if (d3.select(this).attr("stroke") === colorScale(cond)) {
+                            return "none";
+                        }
+                    }
+                }
+                return "block";
+            });
+
+            groupedData.forEach(([condition]) => {
+                svg.selectAll("circle").each(function() {
+                    const circle = d3.select(this);
+                    if (circle.attr("fill") === colorScale(condition)) {
+                        if (hiddenCategories.has(condition)) {
+                            circle.style("display", "none");
+                        } else {
+                            circle.style("display", "block");
+                        }
+                    }
+                });
+
+                svg.selectAll("path").each(function() {
+                    const path = d3.select(this);
+                    if (path.attr("stroke") === colorScale(condition)) {
+                        if (hiddenCategories.has(condition)) {
+                            path.style("display", "none");
+                        } else {
+                            path.style("display", "block");
+                        }
+                    }
+                });
+            });
+        });
+    });
+}).catch(err => {
+    console.error("Error displaying plot data:", err);
+});
+</script>
+</body>
+</html>

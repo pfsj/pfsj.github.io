@@ -60,6 +60,14 @@
 		.swarm-group {
 			cursor: pointer;
 		}
+		.swarm-box {
+			pointer-events: none;
+			opacity: 0;
+			transition: opacity 0.2s ease;
+		}
+		.swarm-group:hover .swarm-box {
+			opacity: 1;
+		}
 		.swarm-dot {
 			transition: fill-opacity 0.2s ease, stroke-width 0.2s ease, r 0.2s ease;
 		}
@@ -123,7 +131,7 @@
 			const csvFromQuery = new URLSearchParams(window.location.search).get("csv");
 			const csvCandidates = csvFromQuery
 				? [csvFromQuery]
-				: ["data.csv", "new_data.csv", "updated_data.csv"];
+				: ["data.csv"];
 
 			let csv = "";
 			let loadedFile = "";
@@ -300,6 +308,18 @@
 			const median = d3.quantile(values, 0.5);
 			const q3 = d3.quantile(values, 0.75);
 
+			swarmGroup.append("rect")
+				.attr("class", "swarm-box")
+				.attr("x", cx - x.bandwidth() * 0.42)
+				.attr("y", 0)
+				.attr("width", x.bandwidth() * 0.84)
+				.attr("height", innerHeight)
+				.attr("fill", "none")
+				.attr("stroke", "#d11")
+				.attr("stroke-width", 2)
+				.attr("rx", 8)
+				.attr("ry", 8);
+
 			const nodes = sampledValues.map(v => ({
 				riskRatio: v,
 				x: cx,
@@ -313,6 +333,18 @@
 				.force("collide", d3.forceCollide(dotRadius + 0.4))
 				.stop()
 				.tick(220);
+
+			// Compute actual dot extents after simulation
+			const minDotY = d3.min(nodes, d => d.y) - dotRadius - 2;
+			const maxDotY = d3.max(nodes, d => d.y) + dotRadius + 2;
+			const minDotX = d3.min(nodes, d => d.x) - dotRadius - 2;
+			const maxDotX = d3.max(nodes, d => d.x) + dotRadius + 2;
+
+			swarmGroup.select(".swarm-box")
+				.attr("x", minDotX)
+				.attr("y", minDotY)
+				.attr("width", maxDotX - minDotX)
+				.attr("height", maxDotY - minDotY);
 
 			swarmGroup.selectAll("circle")
 				.data(nodes)
@@ -333,8 +365,8 @@
 				.attr("x2", cx + x.bandwidth() * 0.26)
 				.attr("y1", y(median))
 				.attr("y2", y(median))
-				.attr("stroke", "#fff")
-				.attr("stroke-width", 2)
+				.attr("stroke", "#000")
+				.attr("stroke-width", 3.5)
 				.attr("class", "median-line");
 
 			// Median label (shown on hover) with white background for readability
