@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Network Perspective</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 16px; background: #f7f8fc; }
+    h2 { margin: 0 0 6px; }
+    p { margin: 0 0 14px; color: #475569; }
+    .panel-title { font-size: 15px; font-weight: 700; fill: #0f172a; }
+    .panel-note { font-size: 12px; fill: #64748b; }
+    .link { stroke: #a5b4c9; stroke-width: 2; stroke-opacity: 0.85; }
+    .node { stroke: #334155; stroke-width: 1.1; }
+        .focusA { fill: #ff1f1f; }
+        .focusB { fill: #1fbf3a; }
+        .other { fill: #1fbf3a; }
+    .label { font-size: 12px; fill: #0f172a; text-anchor: middle; dominant-baseline: middle; }
+  </style>
+</head>
+<body>
+
+    <svg id="chart" width="1080" height="700"></svg>
+
+  <script>
+        var graph;
+        function myGraph() {
+            var svg = d3.select("#chart"),
+                    w = +svg.attr("width"),
+                    h = +svg.attr("height");
+
+            var colorSchemes = [
+                { cluster1: "#1fbf3a", cluster2: "#ff1f1f", other: "#94a3b8" },
+                { cluster1: "#1fbf3a", cluster2: "#ff1f1f", other: "#94a3b8" }
+            ];
+            var currentSchemeIndex = 0;
+
+            var color = d3.scaleOrdinal(d3.schemeTableau10);
+            var nodes = [];
+            var links = [];
+
+            var linkLayer = svg.append("g");
+            var nodeLayer = svg.append("g");
+            var beeswarmLayer = svg.append("g").attr("class", "beeswarm");
+
+            svg.on("click", function () {
+                currentSchemeIndex = currentSchemeIndex === 0 ? 1 : 0;
+                update();
+            });
+
+            var simulation = d3.forceSimulation(nodes)
+                .force("link", d3.forceLink(links).id(function (d) { return d.id; }).distance(80))
+                .force("charge", d3.forceManyBody().strength(-600).distanceMax(500))
+                .force("center", d3.forceCenter(w / 2, h * 0.30))
+                .force("x", d3.forceX(w / 2).strength(0.1))
+                .force("y", d3.forceY(h * 0.30).strength(0.1));
+
+            this.addNode = function (id, group, cluster, x, y) {
+                if (findNode(id)) return;
+                nodes.push({ id: id, group: group, cluster: cluster, X: x, Y: y });
+                update();
+            };
+
+            this.removeNode = function (id) {
+                var idx = findNodeIndex(id);
+                if (idx < 0) return;
+                links = links.filter(function (l) {
+                    var s = typeof l.source === "object" ? l.source.id : l.source;
+                    var t = typeof l.target === "object" ? l.target.id : l.target;
+                    return s !== id && t !== id;
+                });
+                nodes.splice(idx, 1);
+                update();
+            };
+
+            this.removeLink = function (source, target) {
+                links = links.filter(function (l) {
+                    var s = typeof l.source === "object" ? l.source.id : l.source;
+                    var t = typeof l.target === "object" ? l.target.id : l.target;
+                    return !(s === source && t === target);
+                });
+                update();
+            };
+
+            this.removeallLinks = function () {
+                links = [];
+                update();
+            };
+
+            this.removeAllNodes = function () {
+                nodes = [];
+                links = [];
+                update();
+            };
+
+            this.addLink = function (source, target, value) {
+                if (!findNode(source) || !findNode(target)) return;
+                links.push({ source: source, target: target, value: value || 1 });
+                update();
+            };
+
+            function findNode(id) {
+                return nodes.find(function (n) { return n.id === id; });
+            }
+
+            function findNodeIndex(id) {
+                return nodes.findIndex(function (n) { return n.id === id; });
+            }
+
+            function getNodeClusterForScheme(d) {
+                if (Array.isArray(d.cluster)) {
+                    if (d.cluster[currentSchemeIndex] !== undefined) return d.cluster[currentSchemeIndex];
+                    if (d.cluster[0] !== undefined) return d.cluster[0];
+                    return 0;
+                }
+                if (d.cluster && typeof d.cluster === "object") {
+                    if (d.cluster[currentSchemeIndex] !== undefined) return d.cluster[currentSchemeIndex];
+                    if (d.cluster.default !== undefined) return d.cluster.default;
+                    return 0;
+                }
+                return d.cluster;
+            }
+
+            function drag(sim) {
+                function dragstarted(event, d) {
+                    if (!event.active) sim.alphaTarget(0.3).restart();
+                    d.fx = d.x;
+                    d.fy = d.y;
+                }
+                function dragged(event, d) {
+                    d.fx = event.x;
+                    d.fy = event.y;
+                }
+                function dragended(event, d) {
+                    if (!event.active) sim.alphaTarget(0);
+                    d.fx = null;
+                    d.fy = null;
+                }
+                return d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended);
+            }
+
+            function update() {
+                var scheme = colorSchemes[currentSchemeIndex];
+                var swarmTop = h * 0.58;
+                var swarmHeight = h * 0.34;
+                var swarmLeft = w * 0.30;
+                var swarmRight = w * 0.70;
+
+                var link = linkLayer.selectAll("line.link")
+                    .data(links, function (d) {
+                        var s = typeof d.source === "object" ? d.source.id : d.source;
+                        var t = typeof d.target === "object" ? d.target.id : d.target;
+                        return s + "-" + t;
+                    });
+
+                link.exit().remove();
+
+                var linkEnter = link.enter().append("line")
+                    .attr("class", "link");
+
+                linkEnter.append("title");
+
+                link = linkEnter.merge(link)
+                    .attr("stroke-width", function (d) { return Math.max(1.5, d.value || 1); });
+
+                link.select("title").text(function (d) { return d.value || 1; });
+
+                var node = nodeLayer.selectAll("g.node")
+                    .data(nodes, function (d) { return d.id; });
+
+                node.exit().remove();
+
+                var nodeEnter = node.enter().append("g")
+                    .attr("class", "node")
+                    .call(drag(simulation));
+
+                nodeEnter.append("circle")
+                    .attr("r", 11)
+                    .attr("fill", function (d) {
+                        var clusterValue = getNodeClusterForScheme(d);
+                        if (clusterValue === 1) return scheme.cluster1;
+                        if (clusterValue === 2) return scheme.cluster2;
+                        return scheme.other;
+                    });
+
+                nodeEnter.append("text")
+                    .attr("class", "label")
+                    .attr("dy", 0)
+                    .text(function (d) { return d.id; });
+
+                node = nodeEnter.merge(node);
+
+                node.select("circle")
+                    .attr("fill", function (d) {
+                        var clusterValue = getNodeClusterForScheme(d);
+                        if (clusterValue === 1) return scheme.cluster1;
+                        if (clusterValue === 2) return scheme.cluster2;
+                        return scheme.other;
+                    });
+
+                simulation.nodes(nodes).on("tick", function () {
+                    link
+                        .attr("x1", function (d) { return d.source.x; })
+                        .attr("y1", function (d) { return d.source.y; })
+                        .attr("x2", function (d) { return d.target.x; })
+                        .attr("y2", function (d) { return d.target.y; });
+
+                    node.attr("transform", function (d) { return "translate(" + d.x + "," + d.y + ")"; });
+                });
+
+                simulation.force("link").links(links);
+                simulation.alpha(1).restart();
+
+                var swarmData = nodes
+                    .map(function (d) {
+                        return {
+                            id: d.id,
+                            value: +d.group,
+                            colorGroup: getNodeClusterForScheme(d)
+                        };
+                    })
+                    .filter(function (d) { return !isNaN(d.value); });
+
+                var colorGroups = Array.from(new Set(swarmData.map(function (d) { return d.colorGroup; }))).sort(d3.ascending);
+                var xScale = d3.scaleBand()
+                    .domain(colorGroups)
+                    .range([swarmLeft, swarmRight])
+                    .padding(0.45);
+
+                var extent = d3.extent(swarmData, function (d) { return d.value; });
+                if (extent[0] === extent[1]) extent = [extent[0] - 1, extent[1] + 1];
+                var yScale = d3.scaleLinear()
+                    .domain(extent)
+                    .nice()
+                    .range([swarmTop + swarmHeight - 24, swarmTop + 24]);
+
+                var swarmByGroup = d3.group(swarmData, function (d) { return d.colorGroup; });
+                swarmByGroup.forEach(function (arr, key) {
+                    arr.forEach(function (d) {
+                        d.x = xScale(key) + xScale.bandwidth() / 2;
+                        d.y = yScale(d.value);
+                    });
+
+                    var s = d3.forceSimulation(arr)
+                        .force("x", d3.forceX(xScale(key) + xScale.bandwidth() / 2).strength(0.2))
+                        .force("y", d3.forceY(function (d) { return yScale(d.value); }).strength(1))
+                        .force("collide", d3.forceCollide(7.5))
+                        .stop();
+
+                    for (var i = 0; i < 140; i++) s.tick();
+                });
+
+                beeswarmLayer.selectAll("line.swarm-sep")
+                    .data(colorGroups)
+                    .join("line")
+                    .attr("class", "swarm-sep")
+                    .attr("x1", function (d) { return xScale(d) + xScale.bandwidth() / 2; })
+                    .attr("x2", function (d) { return xScale(d) + xScale.bandwidth() / 2; })
+                    .attr("y1", swarmTop + 24)
+                    .attr("y2", swarmTop + swarmHeight - 24)
+                    .attr("stroke", "#e2e8f0")
+                    .attr("stroke-width", 1);
+
+                beeswarmLayer.selectAll("g.swarm-x-axis")
+                    .data([null])
+                    .join("g")
+                    .attr("class", "swarm-x-axis")
+                    .attr("transform", "translate(0," + (swarmTop + swarmHeight - 10) + ")")
+                    .call(d3.axisBottom(xScale).tickFormat(function (d) { return "Color group " + d; }));
+
+                beeswarmLayer.selectAll("g.swarm-y-axis")
+                    .data([null])
+                    .join("g")
+                    .attr("class", "swarm-y-axis")
+                    .attr("transform", "translate(" + swarmLeft + ",0)")
+                    .call(d3.axisLeft(yScale).ticks(8));
+
+                beeswarmLayer.selectAll("text.swarm-title")
+                    .data([null])
+                    .join("text")
+                    .attr("class", "swarm-title")
+                    .attr("x", swarmLeft)
+                    .attr("y", swarmTop)
+                    .attr("fill", "#0f172a")
+                    .attr("font-size", 14)
+                    .attr("font-weight", 700);
+
+                beeswarmLayer.selectAll("text.swarm-x-label")
+                    .data([null])
+                    .join("text")
+                    .attr("class", "swarm-x-label")
+                    .attr("x", (swarmLeft + swarmRight) / 2)
+                    .attr("y", swarmTop + swarmHeight + 18)
+                    .attr("text-anchor", "middle")
+                    .attr("fill", "#475569")
+                    .attr("font-size", 12);
+
+                beeswarmLayer.selectAll("text.swarm-y-label")
+                    .data([null])
+                    .join("text")
+                    .attr("class", "swarm-y-label")
+                    .attr("transform", "translate(20," + (swarmTop + swarmHeight / 2) + ") rotate(-90)")
+                    .attr("text-anchor", "middle")
+                    .attr("fill", "#475569")
+                    .attr("font-size", 12);
+                beeswarmLayer.selectAll("circle.swarm-node")
+                    .data(swarmData, function (d) { return d.id; })
+                    .join("circle")
+                    .attr("class", "swarm-node")
+                    .attr("r", 6)
+                    .attr("cx", function (d) { return d.x; })
+                    .attr("cy", function (d) { return d.y; })
+                    .attr("fill", function (d) {
+                        if (d.colorGroup === 1) return scheme.cluster1;
+                        if (d.colorGroup === 2) return scheme.cluster2;
+                        return scheme.other;
+                    })
+                    .attr("stroke", "#334155")
+                    .attr("stroke-width", 0.8)
+                    .append("title")
+                    .text(function (d) { return d.id + ": " + d.value; });
+            }
+
+            update();
+        }
+
+        graph = new myGraph();
+        graph.addNode("A", 1, [1, 2], 10);
+        graph.addNode("B", 3, [1, 2], 12);
+        graph.addNode("C", 2, [2, 2], 15);
+        graph.addNode("D", 2, [2, 2], 17);
+        graph.addNode("E", 3, [2, 0], 20);
+        graph.addNode("F", 4, [2, 1], 24);
+        graph.addNode("G", 5, [2, 1], 27);
+        graph.addNode("H", 6, [1, 1], 29);
+        graph.addNode("I", 7, [1, 1], 31);
+        graph.addNode("J", 8, [2, 1], 35);
+        graph.addLink("A", "B", 1);
+        graph.addLink("A", "C", 1);
+        graph.addLink("B", "D", 1);
+        graph.addLink("C", "D", 1);
+        graph.addLink("D", "E", 1);
+        graph.addLink("E", "F", 1);
+        graph.addLink("F", "G", 1);
+        graph.addLink("G", "I", 1);  
+        graph.addLink("G", "H", 1);
+        graph.addLink("H", "I", 1);
+        graph.addLink("I", "J", 1);
+        graph.addLink("F", "H", 1);
+  </script>
+</body>
+</html>
