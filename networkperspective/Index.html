@@ -21,7 +21,7 @@
 </head>
 <body>
 
-    <svg id="chart" width="1080" height="700"></svg>
+    <svg id="chart" width="720" height="480"></svg>
 
   <script>
         var graph;
@@ -51,7 +51,7 @@
 
             var simulation = d3.forceSimulation(nodes)
                 .force("link", d3.forceLink(links).id(function (d) { return d.id; }).distance(80))
-                .force("charge", d3.forceManyBody().strength(-600).distanceMax(500))
+                .force("charge", d3.forceManyBody().strength(-260))
                 .force("center", d3.forceCenter(w / 2, h * 0.30))
                 .force("x", d3.forceX(w / 2).strength(0.1))
                 .force("y", d3.forceY(h * 0.30).strength(0.1));
@@ -304,6 +304,7 @@
                     .attr("text-anchor", "middle")
                     .attr("fill", "#475569")
                     .attr("font-size", 12);
+                    
                 beeswarmLayer.selectAll("circle.swarm-node")
                     .data(swarmData, function (d) { return d.id; })
                     .join("circle")
