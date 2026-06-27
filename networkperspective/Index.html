@@ -268,7 +268,7 @@
                     .join("g")
                     .attr("class", "swarm-x-axis")
                     .attr("transform", "translate(0," + (swarmTop + swarmHeight - 10) + ")")
-                    .call(d3.axisBottom(xScale).tickFormat(function (d) { return "Color group " + d; }));
+                    .call(d3.axisBottom(xScale).tickFormat(function (d) { return "Group " + d; }));
 
                 beeswarmLayer.selectAll("g.swarm-y-axis")
                     .data([null])
